@@ -1,6 +1,6 @@
 #Gaussian Mixture Parameter Estimation
 #GMPE
-module GMPE
+module GMMParameterEstimation
 using HomotopyContinuation
 using Distributions
 using LinearAlgebra
