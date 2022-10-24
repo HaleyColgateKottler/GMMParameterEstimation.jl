@@ -5,6 +5,9 @@ version = "0.1.0"
 
 [compat]
 julia = "1.7"
+HomotopyContinuation = "2.6.4"
+Distributions = "0.25.62"
+Combinatorics = "1.0.2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
