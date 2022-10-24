@@ -1,6 +1,6 @@
-using GMPE
+using GMMParameterEstimation
 using Test
 
-@testset "GMPE.jl" begin
+@testset "GMMParameterEstimation.jl" begin
     # Write your tests here.
 end
