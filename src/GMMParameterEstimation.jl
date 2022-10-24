@@ -1,5 +1,3 @@
-#Gaussian Mixture Parameter Estimation
-#GMPE
 module GMMParameterEstimation
 using HomotopyContinuation
 using Distributions
@@ -199,7 +197,7 @@ function mixedMomentSystem(d, k, mixing, ms, vs)
 end
 
 # number of solutions for use in homotopy continuations
-const target_numbers = Dict{String, Tuple{Int64, Int64}}("4"=>(10350,2520), "3"=>(225, 90), "2"=>(9,6), "5"=>(113400,113400), "6"=>(1,1))
+const target_numbers = Dict{String, Tuple{Int64, Int64}}("4"=>(10350,2520), "3"=>(225, 90), "2"=>(9,6))
         
 # perfect moments, unknown mixing coefficients
 function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
@@ -395,50 +393,45 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
     
     @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
     
-#     means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
-#     covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
-#     
-#     # Build 1D system for other dimensions
-#     (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
-#     temp_start = append!(randn(2*k) + im*randn(2*k))
-#     temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
-#     R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-#         
-#     for i in 1:d
-#         i%100 == 0 && println(i)
-#         
-#         # Compute the relevant moments
-#         true_params = append!([true_covariances[j,i,i] for j in 1:k], [true_means[j,i] for j in 1:k])
-#         all_moments = [p([s; y] => true_params) for p in system_i]
-#         
-#         # Parameter homotopy from random parameters to real parameters
-#         solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-#         
-#         # Choose the statistically significant solution closest to the next moment
-#         best_sol_i = selectSol(k, solution, polynomial_i, polynomial_i([s; y] => true_params))
-#         if best_sol_i == false
-#             return (false, (nothing,nothing,nothing))
-#         end 
-# 
-#         for j in 1:k
-#             covariances[j, i, i] = best_sol_i[j]
-#             means[j, i] = best_sol_i[k+j]
-#         end
-#     end
-#         
-#     solution = []
-#     binomials = []
-#     true_params = []
-#     all_moments = []
-#     system_i = []
-#     polynomial_i = 0
-#     best_sol_i = []
-#     gaussians = []
+    means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
     covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
+    
+    # Build 1D system for other dimensions
+    (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
+    temp_start = append!(randn(2*k) + im*randn(2*k))
+    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
+    R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
+        
     for i in 1:d
-        covariances[1:k, i, i] = true_covariances[1:k, i, i]
+        i%100 == 0 && println(i)
+        
+        # Compute the relevant moments
+        true_params = append!([true_covariances[j,i,i] for j in 1:k], [true_means[j,i] for j in 1:k])
+        all_moments = [p([s; y] => true_params) for p in system_i]
+        
+        # Parameter homotopy from random parameters to real parameters
+        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
+        
+        # Choose the statistically significant solution closest to the next moment
+        best_sol_i = selectSol(k, solution, polynomial_i, polynomial_i([s; y] => true_params))
+        if best_sol_i == false
+            return (false, (nothing,nothing,nothing))
+        end 
+
+        for j in 1:k
+            covariances[j, i, i] = best_sol_i[j]
+            means[j, i] = best_sol_i[k+j]
+        end
     end
-    means = copy(true_means)
+        
+    solution = []
+    binomials = []
+    true_params = []
+    all_moments = []
+    system_i = []
+    polynomial_i = 0
+    best_sol_i = []
+    gaussians = []
     
     if diagonal == false
         mixed_system1 = mixedMomentSystem(d, k, w, means, covariances)
