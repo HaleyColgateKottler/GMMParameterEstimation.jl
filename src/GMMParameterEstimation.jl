@@ -224,7 +224,6 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
         temp_start = append!(randn(3*k) + im*randn(3*k))
         temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
     end
-    println("build time 1 ", build_time1)
     build_time += build_time1
     
     solve_time1 = @elapsed begin
@@ -292,7 +291,6 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
         end
         best_sol = []
     end
-    println("solve time 1 ", solve_time1)
     solve_time += solve_time1
     
     build_time2 = @elapsed begin
@@ -303,7 +301,6 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
         temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
         R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
     end
-    println("build time 2 ", build_time2)
     build_time += build_time2
     
     for i in 2:d
@@ -328,7 +325,6 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
             covariances[1:k, i, i] = best_sol_i[1:k]
         end
         end
-        println("solve time 2 ", solve_time2)
         solve_time += solve_time2
     end
         
@@ -358,7 +354,6 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
         remaining_vars = variables(final_system)
         matrix_system = jacobian(System(final_system), zeros(size(final_system)[1]))
         end
-        println("build time 3 ", build_time3)
         build_time += build_time3
         
         solve_time3 = @elapsed begin
@@ -377,7 +372,6 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
             end
         end
         end 
-        println("solve time 3 ", solve_time3)
         solve_time += solve_time3
     end
     return (true, (mixing_coefficients, means, covariances), (build_time, solve_time))
