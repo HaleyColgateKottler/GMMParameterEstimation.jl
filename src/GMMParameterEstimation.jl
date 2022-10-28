@@ -439,8 +439,6 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
             sample_moment = true_mixed_system[key](vs=>true_covariances)
             push!(final_system, polynomial)
             push!(target_vector, sample_moment-constant)
-            println(key)
-            println(polynomial)
         end 
         remaining_vars = variables(final_system)
         matrix_system = jacobian(System(final_system), zeros(size(final_system)[1]))
