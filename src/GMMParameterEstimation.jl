@@ -6,8 +6,13 @@ using Combinatorics
 
 export estimate_parameters, unknown_coefficients, known_coefficients, generateGaussians, getSample
 
-# Function to make covariance matrices
-# Throws error if result is not positive semidefinite
+"""
+    makeCovarianceMatrix(d::Integer, diagonal::Bool=false)
+
+Generate random 'd'x'd' covariance matrix
+
+If 'diagonal'==true, returns a diagonal covariance matrix
+"""
 function makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
     covars = randn(d,d)
     covars = covars * covars'
@@ -16,8 +21,13 @@ function makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
     return covars
 end
 
-# Generates k Gaussians with dimension d
-# Diagonal parameter is true for spherical case, and false for dense covariance matrices
+"""
+    generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
+
+Generate means and covariances for 'k' Gaussians with dimension 'd'
+
+'diagonal' should be true for spherical case, and false for dense covariance matrices
+"""
 function generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
     w::Vector{Float64} = abs.(randn(k))
     w /= sum(w)
@@ -29,7 +39,11 @@ function generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
     return (w, means, variances)
 end
 
-# Computes 1D sample moments 0 through m, for the given dimension
+"""
+    get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
+    
+Compute the 1D sample moments 0 through 'm', for the given 'dimension' of 'sample'
+"""
 function get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
     d1moments = [1.0]
     for j in 1:m
@@ -38,13 +52,7 @@ function get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
     return d1moments
 end
 
-# Builds the polynomial system for a mixture of 1D Gaussians
-# m is the highest desired moment  
-# This version is for unknown mixing coefficients a
-function build1DSystem(k::Integer, m::Integer)
-    @var a[1:k]
-    return build1DSystem(k, m, a)
-end
+
 
 # Generate a sample with numb entries from the given mixture model parameters
 function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
@@ -55,9 +63,20 @@ function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, co
     return r
 end
     
-# Builds the polynomial system for a mixture of 1D Gaussians
-# m is the highest desired moment  
-# This version is for known mixing coefficients a
+    
+"""
+    build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
+
+Build the polynomial system for a mixture of 1D Gaussians
+m is the highest desired moment  
+
+If 'a' is given, use 'a' as the mixing coefficients, otherwise leave them as unknowns
+"""
+function build1DSystem(k::Integer, m::Integer)
+    @var a[1:k]
+    return build1DSystem(k, m, a)
+end
+
 function build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
     @var s[1:k] y[1:k] t x
     
@@ -74,7 +93,11 @@ function build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{
     return (system, target)
 end
 
-# Return the statistically significant solution closest to the next moment, and the total number of statistically significant solutions
+"""
+    selectSol(k::Integer, solution::Result, polynomial::Expression, moment::Number)
+    
+Sort out the 'k' mixtures' statistically significant solutions from 'solution', and return the one closest to 'moment' when 'polynomial' is evaluated at those values
+"""
 function selectSol(k::Integer, solution::Result, polynomial::Expression, moment::Number)
     @var s[1:k] y[1:k]
     stat_significant = [];
@@ -93,7 +116,11 @@ function selectSol(k::Integer, solution::Result, polynomial::Expression, moment:
     return stat_significant[id][1] # pull the best one
 end
 
-# Compute the tensor power
+"""
+    tensorPower(tensor, power::Integer)
+
+Compute the 'power' tensor power of 'tensor'
+"""
 function tensorPower(tensor, power::Integer)
     if power == 0
         return 1
@@ -108,6 +135,11 @@ function tensorPower(tensor, power::Integer)
     end
 end
 
+"""
+    convert_indexing(moment_i, d)
+    
+Convert the 'd' dimensional multivariate 'moment_i' index to the corresponding tensor moment index
+"""
 function convert_indexing(moment_i, d)
     indexing::Array{Int64} = [repeat([1], moment_i[1])...]
     for w in 2:d
@@ -115,6 +147,7 @@ function convert_indexing(moment_i, d)
     end
     return indexing
 end
+
 
 # Build the linear system for finding the off-diagonal covariances
 function mixedMomentSystem(d, k, mixing, ms, vs)
