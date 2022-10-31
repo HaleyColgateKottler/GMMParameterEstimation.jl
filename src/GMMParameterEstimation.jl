@@ -52,9 +52,11 @@ function get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
     return d1moments
 end
 
-
-
-# Generate a sample with numb entries from the given mixture model parameters
+"""
+    getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
+    
+Generate a Gaussian mixture model sample with 'numb' entries, mixing coefficients 'w', means 'means', and covariances 'covariances'
+"""
 function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
     k = size(w)[1]
     gaussians = [(means[i, 1:end], covariances[i, 1:end, 1:end]) for i in 1:k]
@@ -68,7 +70,7 @@ end
     build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
 
 Build the polynomial system for a mixture of 1D Gaussians
-m is the highest desired moment  
+'m' is the highest desired moment  
 
 If 'a' is given, use 'a' as the mixing coefficients, otherwise leave them as unknowns
 """
@@ -148,8 +150,11 @@ function convert_indexing(moment_i, d)
     return indexing
 end
 
+"""
+    mixedMomentSystem(d, k, mixing, ms, vs)
 
-# Build the linear system for finding the off-diagonal covariances
+Build a linear system for finding the off-diagonal covariances entries for a 'd' dimensional Gaussian 'k'-mixture model with mixing coefficients 'mixing', means 'ms', and covariances 'vs' where the diagonal entries have been filled in and the off diagonals are variables
+"""
 function mixedMomentSystem(d, k, mixing, ms, vs)
     # Force symmetry of covariance matrix
     for i1 in 1:k
@@ -229,10 +234,15 @@ function mixedMomentSystem(d, k, mixing, ms, vs)
     return indexed_system
 end
 
+
 # number of solutions for use in homotopy continuations
-const target_numbers = Dict{String, Tuple{Int64, Int64}}("4"=>(10350,2520), "3"=>(225, 90), "2"=>(9,6))
-        
-# perfect moments, unknown mixing coefficients
+const target_numbers = Dict{String, Tuple{Int64, Int64}}("4"=>(10350,2520), "3"=>(225, 90), "2"=>(9,6), "1"=>(2, 1))
+
+"""
+    unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+    
+Compute parameters and build and solve times for the perfect moment, unknown mixing coefficients case of a 'd' dimensional Gaussian 'k'-mixture model with mixing coefficients 'w', means 'true_means', and covariances 'true_covariances'
+"""
 function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
     
     build_time = 0
@@ -410,9 +420,13 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
     return (true, (mixing_coefficients, means, covariances), (build_time, solve_time))
 end
    
-# perfect moments, known mixing coefficients
+"""
+    known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+    
+Compute parameters for the perfect moment, known mixing coefficients case of a 'd' dimensional Gaussian 'k'-mixture model with mixing coefficients 'w', means 'true_means', and covariances 'true_covariances'
+"""
 function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
-#     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
+    target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
         
     # Build the system of equations for step 1
     # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
@@ -460,7 +474,7 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
     best_sol_i = []
     gaussians = []
     
-    if diagonal == false
+    if (diagonal == false) && (d>1)
         mixed_system1 = mixedMomentSystem(d, k, w, means, covariances)
         true_mixed_system = mixedMomentSystem(d, k, w, true_means, true_covariances)
         final_system::Vector{Expression} = []
@@ -492,8 +506,14 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
     return (true, (w, means, covariances))
 end
 
-# sample moments, unknown mixing coefficients
-# the sample should be a k x sample-size array
+"""
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}[, w::Array{Float64}]; diagonal::Bool = false)
+    
+Compute an estimate for the parameters of a 'd'-dimensional Gaussian 'k'-mixture model from a sample
+If 'diagonal' is true, the covariance matrices are assumed to be diagonal
+If 'w' is provided it is taken as the mixing coefficients, otherwise those are computed as well.
+The sample should be a k x sample-size array
+"""
 function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}; diagonal::Bool = false)
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
         
@@ -619,7 +639,7 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}; dia
     best_sol_i = []
     gaussians = []
     
-    if diagonal == false
+    if (diagonal == false) && (d>1)
         mixed_system1 = mixedMomentSystem(d, k, mixing_coefficients, means, covariances)
         
         final_system::Vector{Expression} = []
@@ -659,9 +679,7 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}; dia
     return(true, (mixing_coefficients, means, covariances))
 end
 
-# sample moments, known mixing coefficients
-# the sample should be a k x sample-size array
-function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, sample::Array{Float64}; diagonal::Bool = false)
+function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, w::Array{Float64}; diagonal::Bool = false)
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
     
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
@@ -672,9 +690,8 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, sample::
 
     # Build 1D system
     (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
-        
     temp_start = append!(randn(2*k) + im*randn(2*k))
-    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
+    temp_moments = [p([y;s]=>(temp_start)) for p in system_i[2:end]]
     R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
     
     for i in 1:d        
@@ -705,7 +722,7 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, sample::
     best_sol_i = []
     gaussians = []
     
-    if diagonal == false
+    if (diagonal == false) && (d>1)
         mixed_system1 = mixedMomentSystem(d, k, w, means, covariances)
         
         final_system::Vector{Expression} = []
