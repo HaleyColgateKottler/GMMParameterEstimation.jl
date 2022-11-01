@@ -508,11 +508,10 @@ end
 
 """
     estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}[, w::Array{Float64}]; diagonal::Bool = false)
-    
-Compute an estimate for the parameters of a 'd'-dimensional Gaussian 'k'-mixture model from a sample
-If 'diagonal' is true, the covariance matrices are assumed to be diagonal
-If 'w' is provided it is taken as the mixing coefficients, otherwise those are computed as well.
-The sample should be a k x sample-size array
+
+Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
+
+If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a k x sample-size array.
 """
 function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}; diagonal::Bool = false)
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
