@@ -4,7 +4,7 @@ using Distributions
 using LinearAlgebra
 using Combinatorics
 
-export estimate_parameters, unknown_coefficients, known_coefficients, generateGaussians, getSample
+export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool=false)
