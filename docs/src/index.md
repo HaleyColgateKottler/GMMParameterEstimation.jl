@@ -5,11 +5,13 @@
 
 ## Functions
 
+These are the primary functionalities of the package.
+
+the problem thing: \",\"
+
 ```@docs
-estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}[, w::Array{Float64}]; diagonal::Bool = false)
+generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
 ```
-
-
 
 ## Index
 
