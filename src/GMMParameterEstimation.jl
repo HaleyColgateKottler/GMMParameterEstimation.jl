@@ -7,7 +7,7 @@ using Combinatorics
 export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters
 
 """
-    makeCovarianceMatrix(d::Integer, diagonal::Bool=false)
+    makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
 
 Generate random `d`x`d` covariance matrix.
 
@@ -66,7 +66,7 @@ function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, co
 end
 
 """
-    build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
+    build1DSystem(k::Integer, m::Integer)
 
 Build the polynomial system for a mixture of 1D Gaussians where 'm' is the highest desired moment.
 
@@ -77,6 +77,13 @@ function build1DSystem(k::Integer, m::Integer)
     return build1DSystem(k, m, a)
 end
 
+"""
+    build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
+
+Build the polynomial system for a mixture of 1D Gaussians where 'm' is the highest desired moment.
+
+If `a` is given, use `a` as the mixing coefficients, otherwise leave them as unknowns.
+"""
 function build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
     @var s[1:k] y[1:k] t x
     
@@ -513,13 +520,13 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}[, w::Array{Float64}]; diagonal::Bool = false)
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool[, w::Array{Float64}])
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
 
 If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
 """
-function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}; diagonal::Bool = false)
+function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
         
     # Build the system of equations for step 1
@@ -684,7 +691,7 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}; dia
     return(true, (mixing_coefficients, means, covariances))
 end
 
-function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, w::Array{Float64}; diagonal::Bool = false)
+function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
     
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
