@@ -1,5 +1,4 @@
-push!(LOAD_PATH,"../src/")
-using Documenter, GMMParameterEstimation, HomotopyContinuation
+using Documenter, GMMParameterEstimation
 
 makedocs(sitename="GMMParameterEstimation.jl")
 

@@ -78,7 +78,7 @@ function build1DSystem(k::Integer, m::Integer)
 end
 
 """
-    build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
+    build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
 
 Build the polynomial system for a mixture of 1D Gaussians where 'm' is the highest desired moment.
 
@@ -520,7 +520,7 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool[, w::Array{Float64}])
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
 
@@ -691,6 +691,13 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
     return(true, (mixing_coefficients, means, covariances))
 end
 
+"""
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
+
+Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
+
+If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
+"""
 function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
     
