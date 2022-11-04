@@ -20,35 +20,37 @@ pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, samp
 
 ## Parameter estimation 
 
-The main functionality of the package is the [`estimate_parameters`](@ref) function which estimates parameters from a sample.
+The main functionality of the package is the [`estimate_parameters`](@ref) function which estimates parameters for a Gaussian Mixture Model from a sample.
 
 ```@docs
-estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool[, w::Array{Float64}])
+estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
 ```
 ```@docs
-unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
-known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
+known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
 ```
 
-## Generating random Gaussian `k` mixtures and samples
+## Generate random Gaussian `k` mixtures and samples
 
 Generating random Gaussian `k` mixtures and sampling from them can be useful for simulation.
 ```@docs
-makeCovarianceMatrix(d::Integer; diagonal::Bool = false)
-generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
+makeCovarianceMatrix(d::Integer, diagonal::Bool)
+generateGaussians(d::Integer, k::Integer, diagonal::Bool)
 getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
 ```
 
-## Functions
+## Build the polynomial systems
 
 ```@docs
 get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
+```
+```@docs
+build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
+```
+```@docs
 tensorPower(tensor, power::Integer)
 convert_indexing(moment_i, d)
 mixedMomentSystem(d, k, mixing, ms, vs)
-```
-```@docs
-build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
 ```
 
 ## Index

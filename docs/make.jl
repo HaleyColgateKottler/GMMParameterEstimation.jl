@@ -1,4 +1,4 @@
-using Documenter, GMMParameterEstimation
+using Documenter, GMMParameterEstimation, HomotopyContinuation
 
 makedocs(sitename="GMMParameterEstimation.jl")
 
