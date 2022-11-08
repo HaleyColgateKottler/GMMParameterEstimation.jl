@@ -7,13 +7,13 @@ using Combinatorics
 export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters
 
 """
-    makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
+    makeCovarianceMatrix(d::Integer, diagonal::Bool)
 
 Generate random `d`x`d` covariance matrix.
 
 If `diagonal`==true, returns a diagonal covariance matrix.
 """
-function makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
+function makeCovarianceMatrix(d::Integer, diagonal::Bool)
     covars = randn(d,d)
     covars = covars * covars'
     diagonal == true && (covars = Diagonal(covars))
@@ -22,13 +22,13 @@ function makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
 end
 
 """
-    generateGaussians(d::Integer, k::Integer; diagonal::Bool)
+    generateGaussians(d::Integer, k::Integer, diagonal::Bool)
 
 Generate means and covariances for `k` Gaussians with dimension `d`.
 
 `diagonal` should be true for spherical case, and false for dense covariance matrices.
 """
-function generateGaussians(d::Integer, k::Integer; diagonal::Bool)
+function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
     w::Vector{Float64} = abs.(randn(k))
     w /= sum(w)
     means = randn(k, d)
