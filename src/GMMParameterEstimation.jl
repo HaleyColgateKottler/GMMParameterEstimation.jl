@@ -7,13 +7,13 @@ using Combinatorics
 export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters
 
 """
-    makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
+    makeCovarianceMatrix(d::Integer, diagonal::Bool)
 
 Generate random `d`x`d` covariance matrix.
 
 If `diagonal`==true, returns a diagonal covariance matrix.
 """
-function makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
+function makeCovarianceMatrix(d::Integer, diagonal::Bool)
     covars = randn(d,d)
     covars = covars * covars'
     diagonal == true && (covars = Diagonal(covars))
@@ -22,19 +22,19 @@ function makeCovarianceMatrix(d::Integer; diagonal::Bool=false)
 end
 
 """
-    generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
+    generateGaussians(d::Integer, k::Integer, diagonal::Bool)
 
 Generate means and covariances for `k` Gaussians with dimension `d`.
 
 `diagonal` should be true for spherical case, and false for dense covariance matrices.
 """
-function generateGaussians(d::Integer, k::Integer; diagonal::Bool = false)
+function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
     w::Vector{Float64} = abs.(randn(k))
     w /= sum(w)
     means = randn(k, d)
     variances = Array{Float64, 3}(undef, (k,d,d))
     for i in 1:k
-        variances[i, 1:end, 1:end] = makeCovarianceMatrix(d, diagonal = diagonal)
+        variances[i, 1:end, 1:end] = makeCovarianceMatrix(d, diagonal)
     end
     return (w, means, variances)
 end
@@ -78,7 +78,7 @@ function build1DSystem(k::Integer, m::Integer)
 end
 
 """
-    build1DSystem(k::Integer, m::Integer[, a::Union{Vector{Float64}, Vector{Variable}}])
+    build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
 
 Build the polynomial system for a mixture of 1D Gaussians where 'm' is the highest desired moment.
 
@@ -248,13 +248,13 @@ end
 const target_numbers = Dict{String, Tuple{Int64, Int64}}("4"=>(10350,2520), "3"=>(225, 90), "2"=>(9,6), "1"=>(2, 1))
 
 """
-    unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+    unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
 
 Compute parameters and build and solve times for the perfect moment, unknown mixing coefficients case.
 
 Assuming a `d` dimensional Gaussian `k`-mixture model with mixing coefficients `w`, means `true_means`, and covariances `true_covariances`.
 """
-function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
     
     build_time = 0
     solve_time = 0
@@ -432,13 +432,13 @@ function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_me
 end
    
 """
-    known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+    known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
 
 Compute parameters for the perfect moment, known mixing coefficients case.
 
 Assuming a `d` dimensional Gaussian `k`-mixture model with mixing coefficients `w`, means `true_means`, and covariances `true_covariances`.
 """
-function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}; diagonal::Bool = false)
+function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
         
     # Build the system of equations for step 1
@@ -520,7 +520,7 @@ function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_mean
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool[, w::Array{Float64}])
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
 
@@ -691,6 +691,13 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
     return(true, (mixing_coefficients, means, covariances))
 end
 
+"""
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
+
+Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
+
+If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
+"""
 function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
     target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
     
