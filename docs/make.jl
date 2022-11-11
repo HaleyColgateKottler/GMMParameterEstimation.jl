@@ -1,4 +1,5 @@
 using Documenter, GMMParameterEstimation, HomotopyContinuation
+push!(LOAD_PATH,"../src/")
 
 makedocs(sitename="GMMParameterEstimation.jl")
 
