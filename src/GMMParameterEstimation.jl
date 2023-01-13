@@ -4,7 +4,16 @@ using Distributions
 using LinearAlgebra
 using Combinatorics
 
-export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters
+export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters, sampleMoments, perfectMoments
+
+# function to compute moments
+## -exactly
+## -from sample
+# structure to input moments
+## unknown coeffs: list for 1st moment, array for diagonals where each column (row?) is a dimension, dict for the off diagonals
+## known coeffs: array for diagonals, dict for the off diagonals, list of coeffs
+# moments as input
+# how to retrieve moments
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool)
@@ -39,6 +48,145 @@ function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
     return (w, means, variances)
 end
 
+
+############################################################################################################################################################
+function perfectMoments(d, k, w, true_means, true_covariances)
+    @var s[1:k] y[1:k] a[1:k]
+    (system, polynomial) = build1DSystem(k, 3*k)
+    # Compute the moments for step 1
+    true_params = append!(copy(w), [true_covariances[i,1,1] for i in 1:k], [true_means[i,1] for i in 1:k])
+    first_moms = [p([a; s; y] => true_params) for p in system]
+    
+    (system_real, polynomial_real) = build1DSystem(k, 2*k+1, w)
+    diagonal_moms = Matrix{Float64}(undef, (d-1,2*k+1))
+    for i in 2:d
+        true_params = append!([true_covariances[j,i,i] for j in 1:k], [true_means[j,i] for j in 1:k])
+        all_moments = append!([p([s; y] => true_params) for p in system_real[2:end]], polynomial_real([s; y] => true_params))
+        diagonal_moms[i-1, 1:end] = all_moments
+    end
+
+    @var vs[1:k, 1:d, 1:d]
+    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
+    for dimension in 1:d
+        for factor in 1:k
+            covariances[factor, dimension, dimension] = true_covariances[factor, dimension, dimension]
+        end
+    end
+    
+    true_mixed_system = mixedMomentSystem(d, k, w, true_means, covariances)
+    
+    indexes = Dict{Vector{Int64}, Expression}()
+    
+    for (key, polynomial) in true_mixed_system
+        sample_moment = true_mixed_system[key](vs=>true_covariances)
+        indexes[key] = sample_moment
+    end
+    return (first_moms, diagonal_moms, indexes)
+end
+
+function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
+    (d, sample_size) = size(sample)
+    first_moms = Vector{Float64}(undef, 3*k+1)
+    first_moms[1] = 1.0
+    for j in 1:3*k
+        first_moms[j+1] = mean(sample[1,i]^j for i in 1:sample_size)
+    end
+    diagonal_moms = Matrix{Float64}(undef, (d-1,2*k+1))
+    for j in 1:2*k+1
+        diagonal_moms[1:end, j] = mean.(sample[i, 1:end].^j for i in 2:d)
+    end
+    if diagonal != false
+        return (first_moms, diagonal_moms, nothing)
+    else
+        indexes = Dict{Vector{Int64}, Expression}()
+
+        target = k*(d^2-d)/2
+        for i in 1:d-1
+            for j in i+1:d 
+                n = 2
+                temp = Int64.(zeros(d))
+                temp[i] = 1
+                temp[j] = 1
+                
+                sample_moment = 0
+                for j in 1:sample_size
+                    temp_moment = 1
+                    for i in 1:d
+                        temp_moment *= sample[i, j]^(temp[i])
+                    end
+                    sample_moment += temp_moment
+                end
+                sample_moment = sample_moment/sample_size
+                indexes[temp] = sample_moment
+                
+                for n in 3:Int64(ceil((k+1)/2))
+                    temp1 = Int64.(zeros(d))
+                    temp1[i] = n-1
+                    temp1[j] = 1
+                    sample_moment1 = 0
+                    for j in 1:sample_size
+                        temp_moment1 = 1
+                        for i in 1:d
+                            temp_moment1 *= sample[i, j]^(temp1[i])
+                        end
+                        sample_moment1 += temp_moment1
+                    end
+                    sample_moment1 = sample_moment1/sample_size
+                    indexes[temp1] = sample_moment1
+
+                    temp2 = Int64.(zeros(d))
+                    temp2[j] = n-1
+                    temp2[i] = 1
+                    sample_moment2 = 0
+                    for j in 1:sample_size
+                        temp_moment2 = 1
+                        for i in 1:d
+                            temp_moment2 *= sample[i, j]^(temp2[i])
+                        end
+                        sample_moment2 += temp_moment2
+                    end
+                    sample_moment2 = sample_moment2/sample_size
+                    indexes[temp2] = sample_moment2
+                end
+                
+                n = Int64(ceil((k+1)/2)) + 1
+                temp = Int64.(zeros(d))
+                temp[i] = 1
+                temp[j] = ceil((k+1)/2)
+                
+                sample_moment = 0
+                for j in 1:sample_size
+                    temp_moment = 1
+                    for i in 1:d
+                        temp_moment *= sample[i, j]^(temp[i])
+                    end
+                    sample_moment += temp_moment
+                end
+                sample_moment = sample_moment/sample_size
+                indexes[temp] = sample_moment
+                
+                if k % 2 != 0
+                    temp = Int64.(zeros(d))
+                    temp[i] = (k+1)/2
+                    temp[j] = 1
+                    sample_moment = 0
+                    for j in 1:sample_size
+                        temp_moment = 1
+                        for i in 1:d
+                            temp_moment *= sample[i, j]^(temp[i])
+                        end
+                        sample_moment += temp_moment
+                    end
+                    sample_moment = sample_moment/sample_size
+                    indexes[temp] = sample_moment
+                end
+            end
+        end
+        return (first_moms, diagonal_moms, indexes)
+    end
+end
+
+    
 """
     get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
 
@@ -209,7 +357,7 @@ function mixedMomentSystem(d, k, mixing, ms, vs)
             end
         end
     end
-
+    
     indexed_system = Dict{Vector{Int64}, Expression}()
     for n in 2:Int64(ceil((k+1)/2)) + 1
         for i in 1:k
@@ -218,7 +366,7 @@ function mixedMomentSystem(d, k, mixing, ms, vs)
                 means = tensorPower(ms[i, 1:end], Int64(n - 2*j))
                 variances = tensorPower(vs[i, 1:end, 1:end], Int64(j))
                 partial_tensor = coefficient .* reshape(kron(means, variances), Integer.(tuple(d * ones(n)...)))
-                
+
                 # symmetrize the tensors
                 for key in indexes[string(n)]
                     ind = convert_indexing(key, d)
@@ -245,191 +393,8 @@ end
 
 
 # number of solutions for use in homotopy continuations
-const target_numbers = Dict{String, Tuple{Int64, Int64}}("4"=>(10350,2520), "3"=>(225, 90), "2"=>(9,6), "1"=>(2, 1))
+const target_numbers = Dict{String, Int64}("4"=>10350, "3"=>225, "2"=>9, "1"=>2)
 
-"""
-    unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
-
-Compute parameters and build and solve times for the perfect moment, unknown mixing coefficients case.
-
-Assuming a `d` dimensional Gaussian `k`-mixture model with mixing coefficients `w`, means `true_means`, and covariances `true_covariances`.
-"""
-function unknown_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
-    
-    build_time = 0
-    solve_time = 0
-    
-    build_time1 = @elapsed begin
-        target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
-        
-        # Build the system of equations for step 1
-        # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
-        @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
-
-        (system, polynomial) = build1DSystem(k, 3*k)
-        # Compute the moments for step 1
-        true_params = append!(copy(w), [true_covariances[i,1,1] for i in 1:k], [true_means[i,1] for i in 1:k])
-        all_moments = [p([a; s; y] => true_params) for p in system]
-    
-        # Define the relabeling group action
-        relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
-    
-        # Generate random complex parameters for initial solution for monodromy method
-        temp_start = append!(randn(3*k) + im*randn(3*k))
-        temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
-    end
-    build_time += build_time1
-    
-    solve_time1 = @elapsed begin
-        # Monodromy solve system with random complex parameters
-        R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
-        relabeling = nothing
-        vars = append!(a,s,y)
-        # Parameter homotopy from random parameters to real parameters
-        solution1 = solve(system - m[1:3*k], solutions(R1); parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=all_moments[1:3*k], show_progress=false)
-        R1 = []
-        system = []
-        temp_start = []
-        temp_moments = []
-        
-        # Check for statistically significant solutions
-        # Return the one closest to the given moment, and the number of statistically significant solutions
-        # Filter out the statistically meaningful solutions (up to symmetry)
-        # Check positive mixing coefficients
-        pos_mixing  = filter(r -> all(r[1:k] .> 0), real_solutions(solution1)); 
-        solution1 = []
-        num_pos_mix = size(pos_mixing)[1]
-        if num_pos_mix == 0
-            best_sol = false
-            num_sols = 0
-        else    
-            # Check positive variances
-            stat_significant1 = filter(r -> all(r[k+1:2*k] .> 0), pos_mixing);
-            num_sols = size(stat_significant1)[1]
-            if num_sols == 0
-                best_sol = false
-            else
-                best_sols1 = [];
-                # Create list of differences between moment and polynomial(statistically significant solutions)
-                for i in 1:size(stat_significant1)[1]
-                    t = polynomial(vars => stat_significant1[i])
-                    append!(best_sols1, norm(polynomial(vars => true_params) - t))
-                end 
-                
-                # Chose the best statistically meaningful solution
-                id = findall(x->x==minimum(best_sols1), best_sols1); # Get the indices of the values with minimum norm
-                best_sols1 = []
-                best_sol = stat_significant1[id][1]
-            end
-            stat_significant1 = []
-        end
-        polynomial = 0
-        pos_mixing = []
-            
-        # If there aren't any statistically significant solutions, return false
-        if best_sol == false
-            return (false, (nothing,nothing,nothing), (nothing, nothing))
-        end
-        
-        # Separate out the mixing coefficients, variances, and means
-        mixing_coefficients = best_sol[1:k]
-        means = zeros(k,d)
-        means[1:k, 1] = best_sol[2*k+1:end]
-        if diagonal == true
-            covariances = zeros(k,d)
-            covariances[1:k, 1] = best_sol[k+1:2*k]
-        else
-            @var vs[1:k, 1:d, 1:d]
-            covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
-            covariances[1:k, 1, 1] = best_sol[k+1:2*k]
-        end
-        best_sol = []
-    end
-    solve_time += solve_time1
-    
-    build_time2 = @elapsed begin
-        # Build 1D system for other dimensions
-        (system_i, polynomial_i) = build1DSystem(k, 2*k+1, mixing_coefficients)
-        (system_real, polynomial_real) = build1DSystem(k, 2*k+1, w)
-        temp_start = append!(randn(2*k) + im*randn(2*k))
-        temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
-        R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-    end
-    build_time += build_time2
-    
-    for i in 2:d
-        solve_time2 = @elapsed begin
-        # Compute the relevant moments
-        true_params = append!([true_covariances[j,i,i] for j in 1:k], [true_means[j,i] for j in 1:k])
-        all_moments = [p([s; y] => true_params) for p in system_real[2:end]]
-        
-        # Parameter homotopy from random parameters to real parameters
-        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-        
-        # Choose the statistically significant solution closest to the next moment
-        best_sol_i = selectSol(k, solution, polynomial_i, polynomial_real([s; y] => true_params))
-        if best_sol_i == false
-            return (false, (nothing,nothing,nothing), (nothing, nothing))
-        end 
-
-        means[1:k, i] = best_sol_i[k+1:end]
-        if diagonal == true
-            covariances[1:k, i] = best_sol_i[1:k]
-        else
-            covariances[1:k, i, i] = best_sol_i[1:k]
-        end
-        end
-        solve_time += solve_time2
-    end
-        
-    solution = []
-    binomials = []
-    true_params = []
-    all_moments = []
-    system_i = []
-    polynomial_i = 0
-    best_sol_i = []
-    gaussians = []
-    
-    if (diagonal == false) && (d>1)
-        build_time3 = @elapsed begin
-        mixed_system1 = mixedMomentSystem(d, k, mixing_coefficients, means, covariances)
-        true_mixed_system = mixedMomentSystem(d, k, w, true_means, true_covariances)
-        final_system::Vector{Expression} = []
-        target_vector = Vector{Float64}()
-        @var mixing[1:k]
-        
-        for (key, polynomial) in mixed_system1
-            constant = polynomial(vs => zeros(size(vs)))
-            sample_moment = true_mixed_system[key](vs=>true_covariances)
-            push!(final_system, polynomial)
-            push!(target_vector, sample_moment-constant)
-        end 
-        remaining_vars = variables(final_system)
-        matrix_system = jacobian(System(final_system), zeros(size(final_system)[1]))
-        end
-        build_time += build_time3
-        
-        solve_time3 = @elapsed begin
-        last_covars = [matrix_system\target_vector]
-        final_system = []
-        matrix_system = []
-        target_vector = []
-        for i2 in 1:d
-            for i3 in i2:d
-                for i1 in 1:k
-                    if typeof(covariances[i1, i2, i3]) != Float64
-                        covariances[i1, i2, i3] = covariances[i1, i2, i3](remaining_vars => last_covars[1])
-                        covariances[i1, i3, i2] = covariances[i1, i2, i3]
-                    end
-                end
-            end
-        end
-        end 
-        solve_time += solve_time3
-    end
-    return (true, (mixing_coefficients, means, covariances), (build_time, solve_time))
-end
    
 """
     known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
@@ -439,8 +404,7 @@ Compute parameters for the perfect moment, known mixing coefficients case.
 Assuming a `d` dimensional Gaussian `k`-mixture model with mixing coefficients `w`, means `true_means`, and covariances `true_covariances`.
 """
 function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
-    target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
-        
+    target2 = doublefactorial(2*k-1)*factorial(k) # Number of solutions to look for in step 3
     # Build the system of equations for step 1
     # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
@@ -526,16 +490,14 @@ Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture
 
 If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
 """
-function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
-    target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
-        
+function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Expression}, diagonal::Bool)
+    target1 = target_numbers[string(k)] # Number of solutions to look for in step 1
+    target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
+    
     # Build the system of equations for step 1
     # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k)
-    
-    # Compute the moments for step 1
-    all_moments = get1Dmoments(sample, 1, 3*k)
  
     # Define the relabeling group action
     relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
@@ -551,9 +513,9 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
     R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
         
     relabeling = nothing
-     vars = append!(a,s,y)
+    vars = append!(a,s,y)
     # Parameter homotopy from random parameters to real parameters
-    solution1 = solve(system - m[1:3*k], solutions(R1); parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=all_moments[1:3*k], show_progress=false)
+    solution1 = solve(system - m[1:3*k], solutions(R1); parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
     
     R1 = []
     system = []
@@ -581,7 +543,7 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
             # Create list of differences between moment and polynomial(statistically significant solutions)
             for i in 1:size(stat_significant1)[1]
                 t = polynomial(vars => stat_significant1[i])
-                append!(best_sols1, norm(all_moments[end] - t))
+                append!(best_sols1, norm(first[end] - t))
             end 
             
             # Chose the best statistically meaningful solution
@@ -598,7 +560,7 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
     if best_sol == false
         return (false, (nothing,nothing,nothing))
     end
-    
+        
     # Separate out the mixing coefficients, variances, and means
     mixing_coefficients = best_sol[1:k]
     
@@ -624,17 +586,16 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
         i%100 == 0 && println(i)
         
         # Compute the relevant moments
-        all_moments = get1Dmoments(sample, i, 2*k+1)
-        
+        all_moments = second[i-1, 1:end]
+                
         # Parameter homotopy from random parameters to real parameters
-        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[2:2*k+1], show_progress=false)
+        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
                 
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
         if best_sol_i == false
             return (false, (nothing,nothing,nothing))
         end 
-
         for j in 1:k
             covariances[j, i, i] = best_sol_i[j]
             means[j, i] = best_sol_i[k+j]
@@ -658,21 +619,13 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
         target_vector = Vector{Float64}()
         @var mixing[1:k]
         
-        sample_size = size(sample)[2]
         for (key, polynomial) in mixed_system1
             constant = polynomial(vs => zeros(size(vs)))
-            sample_moment = 0
-            for j in 1:sample_size
-                temp_moment = 1
-                for i in 1:d
-                    temp_moment *= sample[i, j]^(key[i])
-                end
-                sample_moment += temp_moment
-            end
-            sample_moment = sample_moment/sample_size
+            sample_moment = last[key]
             push!(final_system, polynomial)
             push!(target_vector, sample_moment-constant)
         end 
+                
         remaining_vars = variables(final_system)
         matrix_system = jacobian(System(final_system), zeros(size(final_system)[1]))
         last_covars = [matrix_system\target_vector]
@@ -698,10 +651,10 @@ Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture
 
 If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
 """
-function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
-    target1, target2 = target_numbers[string(k)] # Number of solutions to look for in steps 1 and 3 respectively
+function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Expression}, diagonal::Bool)
+    target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
     
-    @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
+    @var m[0:2*k] s[1:k] y[1:k] a[1:k]
     @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
     
     means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
@@ -709,16 +662,20 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
 
     # Build 1D system
     (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
+        
     temp_start = append!(randn(2*k) + im*randn(2*k))
-    temp_moments = [p([y;s]=>(temp_start)) for p in system_i[2:end]]
+    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
     R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
     
     for i in 1:d        
-        # Compute the relevant moments
-        all_moments = get1Dmoments(sample, i, 2*k+1)
+        if i == 1
+            all_moments = first[2:2*k+2]
+        else
+            all_moments = second[i-1, 1:end]
+        end
         # Solve via the binomial start system
         
-        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[2:2*k+1], show_progress=false)
+        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
         
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
@@ -748,21 +705,13 @@ function estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, dia
         target_vector = Vector{Float64}()
         @var mixing[1:k]
         
-        sample_size = size(sample)[2]
         for (key, polynomial) in mixed_system1
             constant = polynomial(vs => zeros(size(vs)))
-            sample_moment = 0
-            for j in 1:sample_size
-                temp_moment = 1
-                for i in 1:d
-                    temp_moment *= sample[i, j]^(key[i])
-                end
-                sample_moment += temp_moment
-            end
-            sample_moment = sample_moment/sample_size
+            sample_moment = last[key]
             push!(final_system, polynomial)
             push!(target_vector, sample_moment-constant)
         end 
+        
         remaining_vars = variables(final_system)
         matrix_system = jacobian(System(final_system), zeros(size(final_system)[1]))
         final_system = []
