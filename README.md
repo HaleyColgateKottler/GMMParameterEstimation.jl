@@ -11,7 +11,9 @@ using GMMParameterEstimation
 d = 3
 k = 2
 diagonal = true
+num_samples = 10^4
 w, true_means, true_covariances = generateGaussians(d, k, diagonal)
 sample = getSample(num_samples, w, true_means, true_covariances)
-pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, sample, diagonal)
+first_moms, diagonal_moms, off_diagonals = sampleMoments(sample, k)
+pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moms, diagonal_moms, off_diagonals, diagonal)
 ```
