@@ -1,7 +1,8 @@
-using Documenter, GMMParameterEstimation, HomotopyContinuation
+using Documenter, HomotopyContinuation, GMMParameterEstimation
+
 push!(LOAD_PATH,"../src/")
 
-makedocs(sitename="GMMParameterEstimation.jl",
+makedocs(sitename="GMMParameterEstimation.jl Documentation",
          pages = ["Introduction" => "index.md"]
          )
 
