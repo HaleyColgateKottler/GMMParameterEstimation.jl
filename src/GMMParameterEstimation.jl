@@ -385,11 +385,11 @@ end
 const target_numbers = Dict{String, Int64}("4"=>10350, "3"=>225, "2"=>9, "1"=>2)
 
 """
-    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
+    estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing}, diagonal::Bool)
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if `diagonal` is true.
+If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if the covariance matrices are diagonal.
 """
 function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing}, diagonal::Bool)
     target1 = target_numbers[string(k)] # Number of solutions to look for in step 1
@@ -513,7 +513,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     best_sol_i = []
     gaussians = []
     
-    if (diagonal == false) && (d>1)
+    if (last != nothing) && (d>1)
         mixed_system1 = mixedMomentSystem(d, k, mixing_coefficients, means, covariances)
         
         final_system::Vector{Expression} = []
@@ -546,13 +546,13 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
+    estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing}, diagonal::Bool)
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if `diagonal` is true.
+If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if the covariance matrices are diagonal.
 """
-function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing}, diagonal::Bool)
+function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing})
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
     
     @var m[0:2*k] s[1:k] y[1:k] a[1:k]
@@ -599,7 +599,7 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
     best_sol_i = []
     gaussians = []
     
-    if (diagonal == false) && (d>1)
+    if (last != nothing) && (d>1)
         mixed_system1 = mixedMomentSystem(d, k, w, means, covariances)
         
         final_system::Vector{Expression} = []
