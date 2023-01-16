@@ -1,9 +1,11 @@
 # GMMParameterEstimation.jl Documentation
 
+GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian k mixture models using the method of moments. It works for general k with known mixing coefficients, and for k=2,3,4 for unknown mixing coefficients.
+
 ```@contents
 ```
 
-## Parameter Estimation
+## Parameter estimation
 
 The main functionality of this package stems from 
 
@@ -25,7 +27,7 @@ first_moms, diagonal_moms, off_diagonals = sampleMoments(sample, k)
 pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moms, diagonal_moms, off_diagonals, diagonal)
 ```
 
-## Generating and Sampling from Gaussian Mixture Models
+## Generate and sample from Gaussian Mixture Models
 
 ```@docs
 makeCovarianceMatrix
@@ -35,7 +37,7 @@ sampleMoments
 perfectMoments
 ```
 
-## Useful Functions
+## Build the polynomial systems
 
 ```@docs
 build1DSystem
