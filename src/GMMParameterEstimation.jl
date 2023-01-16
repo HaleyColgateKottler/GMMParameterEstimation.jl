@@ -4,16 +4,7 @@ using Distributions
 using LinearAlgebra
 using Combinatorics
 
-export makeCovarianceMatrix, generateGaussians, get1Dmoments, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, unknown_coefficients, known_coefficients, estimate_parameters, sampleMoments, perfectMoments
-
-# function to compute moments
-## -exactly
-## -from sample
-# structure to input moments
-## unknown coeffs: list for 1st moment, array for diagonals where each column (row?) is a dimension, dict for the off diagonals
-## known coeffs: array for diagonals, dict for the off diagonals, list of coeffs
-# moments as input
-# how to retrieve moments
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, perfectMoments
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool)
@@ -48,8 +39,13 @@ function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
     return (w, means, variances)
 end
 
+"""
+    perfectMoments(d, k, w, true_means, true_covariances)
+    
+Use the given parameters to compute the exact moments necessary for parameter estimation.
 
-############################################################################################################################################################
+Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system.
+"""
 function perfectMoments(d, k, w, true_means, true_covariances)
     @var s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k)
@@ -84,6 +80,13 @@ function perfectMoments(d, k, w, true_means, true_covariances)
     return (first_moms, diagonal_moms, indexes)
 end
 
+"""
+    sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
+    
+Use the sample to compute the moments necessary for parameter estimation using method of moments.
+
+Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system if `diagonal` is false.
+"""
 function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
     (d, sample_size) = size(sample)
     first_moms = Vector{Float64}(undef, 3*k+1)
@@ -184,20 +187,6 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
         end
         return (first_moms, diagonal_moms, indexes)
     end
-end
-
-    
-"""
-    get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
-
-Compute the 1D sample moments 0 through `m`, for the given `dimension` of `sample`.
-"""
-function get1Dmoments(sample::Matrix{Float64}, dimension::Integer, m::Integer)
-    d1moments = [1.0]
-    for j in 1:m
-        append!(d1moments, mean(sample[dimension,i]^j for i in 1:size(sample)[2]))
-    end
-    return d1moments
 end
 
 """
@@ -395,102 +384,14 @@ end
 # number of solutions for use in homotopy continuations
 const target_numbers = Dict{String, Int64}("4"=>10350, "3"=>225, "2"=>9, "1"=>2)
 
-   
-"""
-    known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
-
-Compute parameters for the perfect moment, known mixing coefficients case.
-
-Assuming a `d` dimensional Gaussian `k`-mixture model with mixing coefficients `w`, means `true_means`, and covariances `true_covariances`.
-"""
-function known_coefficients(d::Integer, k::Integer, w::Array{Float64}, true_means::Array{Float64,2}, true_covariances::Array{Float64,3}, diagonal::Bool)
-    target2 = doublefactorial(2*k-1)*factorial(k) # Number of solutions to look for in step 3
-    # Build the system of equations for step 1
-    # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
-    @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
-    
-    @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
-    
-    means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
-    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
-    
-    # Build 1D system for other dimensions
-    (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
-    temp_start = append!(randn(2*k) + im*randn(2*k))
-    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
-    R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-        
-    for i in 1:d
-        i%100 == 0 && println(i)
-        
-        # Compute the relevant moments
-        true_params = append!([true_covariances[j,i,i] for j in 1:k], [true_means[j,i] for j in 1:k])
-        all_moments = [p([s; y] => true_params) for p in system_i]
-        
-        # Parameter homotopy from random parameters to real parameters
-        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-        
-        # Choose the statistically significant solution closest to the next moment
-        best_sol_i = selectSol(k, solution, polynomial_i, polynomial_i([s; y] => true_params))
-        if best_sol_i == false
-            return (false, (nothing,nothing,nothing))
-        end 
-
-        for j in 1:k
-            covariances[j, i, i] = best_sol_i[j]
-            means[j, i] = best_sol_i[k+j]
-        end
-    end
-        
-    solution = []
-    binomials = []
-    true_params = []
-    all_moments = []
-    system_i = []
-    polynomial_i = 0
-    best_sol_i = []
-    gaussians = []
-    
-    if (diagonal == false) && (d>1)
-        mixed_system1 = mixedMomentSystem(d, k, w, means, covariances)
-        true_mixed_system = mixedMomentSystem(d, k, w, true_means, true_covariances)
-        final_system::Vector{Expression} = []
-        target_vector = Vector{Float64}()
-        @var mixing[1:k]
-        
-        for (key, polynomial) in mixed_system1
-            constant = polynomial(vs => zeros(size(vs)))
-            sample_moment = true_mixed_system[key](vs=>true_covariances)
-            push!(final_system, polynomial)
-            push!(target_vector, sample_moment-constant)
-        end 
-        remaining_vars = variables(final_system)
-        matrix_system = jacobian(System(final_system), zeros(size(final_system)[1]))
-        last_covars = [matrix_system\target_vector]
-        final_system = []
-        matrix_system = []
-        for i2 in 1:d
-            for i3 in i2:d
-                for i1 in 1:k
-                    if typeof(covariances[i1, i2, i3]) != Float64
-                        covariances[i1, i2, i3] = covariances[i1, i2, i3](remaining_vars => last_covars[1])
-                        covariances[i1, i3, i2] = covariances[i1, i2, i3]
-                    end
-                end
-            end
-        end
-    end
-    return (true, (w, means, covariances))
-end
-
 """
     estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
 
-Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
+Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
+If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if `diagonal` is true.
 """
-function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Expression}, diagonal::Bool)
+function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, nothing}, diagonal::Bool)
     target1 = target_numbers[string(k)] # Number of solutions to look for in step 1
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
     
@@ -645,13 +546,13 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool, w::Array{Float64})
+    estimate_parameters(d::Integer, k::Integer, sample::Array{Float64}, diagonal::Bool)
 
-Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from a sample.
+Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. The sample should be a d x sample-size array.
+If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if `diagonal` is true.
 """
-function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Expression}, diagonal::Bool)
+function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, nothing}, diagonal::Bool)
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
     
     @var m[0:2*k] s[1:k] y[1:k] a[1:k]
