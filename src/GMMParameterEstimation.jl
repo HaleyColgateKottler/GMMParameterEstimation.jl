@@ -391,7 +391,7 @@ Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture
 
 If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if `diagonal` is true.
 """
-function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, nothing}, diagonal::Bool)
+function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing}, diagonal::Bool)
     target1 = target_numbers[string(k)] # Number of solutions to look for in step 1
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
     
@@ -552,7 +552,7 @@ Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture
 
 If `diagonal` is true, the covariance matrices are assumed to be diagonal. If `w` is provided it is taken as the mixing coefficients, otherwise those are computed as well. `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments or `nothing` if `diagonal` is true.
 """
-function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, nothing}, diagonal::Bool)
+function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Union{Dict{Vector{Int64}, Expression}, Nothing}, diagonal::Bool)
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
     
     @var m[0:2*k] s[1:k] y[1:k] a[1:k]
