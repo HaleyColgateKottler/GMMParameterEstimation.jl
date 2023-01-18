@@ -3,7 +3,7 @@ using Documenter, HomotopyContinuation, GMMParameterEstimation
 push!(LOAD_PATH,"../src/")
 
 makedocs(sitename="GMMParameterEstimation.jl Documentation",
-         pages = ["Introduction" => "index.md"]
+         pages = ["Documentation" => "index.md"]
          )
 
 deploydocs(
