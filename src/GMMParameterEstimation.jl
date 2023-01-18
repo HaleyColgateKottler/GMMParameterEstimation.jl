@@ -40,13 +40,13 @@ function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
 end
 
 """
-    perfectMoments(d, k, w, true_means, true_covariances)
+    perfectMoments(d, k, w, true_means, true_covariances, diagonal)
     
 Use the given parameters to compute the exact moments necessary for parameter estimation.
 
-Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system.
+Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system or nothing if `diagonal`==true.
 """
-function perfectMoments(d, k, w, true_means, true_covariances)
+function perfectMoments(d, k, w, true_means, true_covariances, diagonal)
     @var s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k)
     # Compute the moments for step 1
@@ -60,24 +60,28 @@ function perfectMoments(d, k, w, true_means, true_covariances)
         all_moments = append!([p([s; y] => true_params) for p in system_real[2:end]], polynomial_real([s; y] => true_params))
         diagonal_moms[i-1, 1:end] = all_moments
     end
-
-    @var vs[1:k, 1:d, 1:d]
-    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
-    for dimension in 1:d
-        for factor in 1:k
-            covariances[factor, dimension, dimension] = true_covariances[factor, dimension, dimension]
+        
+    if diagonal
+        return (first_moms, diagonal_moms, nothing)
+    else
+        @var vs[1:k, 1:d, 1:d]
+        covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
+        for dimension in 1:d
+            for factor in 1:k
+                covariances[factor, dimension, dimension] = true_covariances[factor, dimension, dimension]
+            end
         end
+        
+        true_mixed_system = mixedMomentSystem(d, k, w, true_means, covariances)
+        
+        indexes = Dict{Vector{Int64}, Expression}()
+        
+        for (key, polynomial) in true_mixed_system
+            sample_moment = true_mixed_system[key](vs=>true_covariances)
+            indexes[key] = sample_moment
+        end
+        return (first_moms, diagonal_moms, indexes)
     end
-    
-    true_mixed_system = mixedMomentSystem(d, k, w, true_means, covariances)
-    
-    indexes = Dict{Vector{Int64}, Expression}()
-    
-    for (key, polynomial) in true_mixed_system
-        sample_moment = true_mixed_system[key](vs=>true_covariances)
-        indexes[key] = sample_moment
-    end
-    return (first_moms, diagonal_moms, indexes)
 end
 
 """
@@ -85,7 +89,7 @@ end
     
 Use the sample to compute the moments necessary for parameter estimation using method of moments.
 
-Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system if `diagonal` is false.
+Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system if `diagonal` is false or nothing if `diagonal`==true.
 """
 function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
     (d, sample_size) = size(sample)
@@ -98,7 +102,7 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
     for j in 1:2*k+1
         diagonal_moms[1:end, j] = mean.(sample[i, 1:end].^j for i in 2:d)
     end
-    if diagonal != false
+    if diagonal
         return (first_moms, diagonal_moms, nothing)
     else
         indexes = Dict{Vector{Int64}, Expression}()
@@ -223,12 +227,12 @@ If `a` is given, use `a` as the mixing coefficients, otherwise leave them as unk
 """
 function build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
     @var s[1:k] y[1:k] t x
-    
+
     bases = [1, x]
     for i in 2:m
         push!(bases, expand(x*bases[i]+(i-1)*t*bases[i-1]))
     end
-    
+
     system::Vector{Expression} = []
     for i in 1:length(bases)-1
         push!(system, a'*[bases[i]([t,x]=>[s[j],y[j]]) for j in 1:k])
