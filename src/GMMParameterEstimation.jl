@@ -48,7 +48,7 @@ Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the 
 """
 function perfectMoments(d, k, w, true_means, true_covariances, diagonal)
     @var s[1:k] y[1:k] a[1:k]
-    (system, polynomial) = build1DSystem(k, 3*k)
+    (system, polynomial) = build1DSystem(k, 3*k+1)
     # Compute the moments for step 1
     true_params = append!(copy(w), [true_covariances[i,1,1] for i in 1:k], [true_means[i,1] for i in 1:k])
     first_moms = [p([a; s; y] => true_params) for p in system]
@@ -209,7 +209,7 @@ end
 """
     build1DSystem(k::Integer, m::Integer)
 
-Build the polynomial system for a mixture of 1D Gaussians where 'm' is the highest desired moment.
+Build the polynomial system for a mixture of 1D Gaussians where 'm'-1 is the highest desired moment.
 
 If `a` is given, use `a` as the mixing coefficients, otherwise leave them as unknowns.
 """
@@ -221,7 +221,7 @@ end
 """
     build1DSystem(k::Integer, m::Integer, a::Union{Vector{Float64}, Vector{Variable}})
 
-Build the polynomial system for a mixture of 1D Gaussians where 'm' is the highest desired moment.
+Build the polynomial system for a mixture of 1D Gaussians where 'm'-1 is the highest desired moment.
 
 If `a` is given, use `a` as the mixing coefficients, otherwise leave them as unknowns.
 """
