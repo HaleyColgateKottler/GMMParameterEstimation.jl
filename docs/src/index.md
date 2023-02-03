@@ -1,23 +1,21 @@
 # GMMParameterEstimation.jl Documentation
 
-GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian k mixture models using the method of moments. It works for general k with known mixing coefficients, and for k=2,3,4 for unknown mixing coefficients.
+GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian k-mixture models using the method of moments. It works for general k with known mixing coefficients, and for k=2,3,4 for unknown mixing coefficients.
 
 ```@contents
 ```
 
 ## Example
-The following code snippet will generate a 3D 2-mixture, take a sample, compute the necessary moments, and then return an estimate of the parameters using the method of moments.
+The following code snippet will use the given moments to return an estimate of the parameters using the method of moments.
 
 ```julia
 using GMMParameterEstimation
 d = 3
 k = 2
-diagonal = true
-num_samples = 10^4
-w, true_means, true_covariances = generateGaussians(d, k, diagonal)
-sample = getSample(num_samples, w, true_means, true_covariances)
-first_moms, diagonal_moms, off_diagonals = sampleMoments(sample, k)
-pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moms, diagonal_moms, off_diagonals, diagonal)
+first_moments = [1.0, 0.980, 1.938, 3.478, 8.909, 20.526, 64.303]
+diagonal_moments = [-0.580 5.682 -11.430 97.890 -341.161; -0.480 1.696 -2.650 11.872 -33.239]
+off_diag_system = Dict{Vector{Int64}, Float64}([0, 1, 2] => -1.075, [1, 0, 1] => -0.252, [1, 2, 0] => 6.021, [1, 0, 2] => 1.117, [1, 1, 0] => -0.830, [0, 1, 1] => 0.884)
+pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moments, diagonal_moments, off_diag_system)
 ```
 ``\\~\\``
  
@@ -69,7 +67,8 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
  
 ```@docs
 sampleMoments
-perfectMoments
+diagonalPerfectMoments
+densePerfectMoments
 ```
 Both expect parameters to be given with weights in a 1D vector, means as a k x d array, and variances as a k x d x d array.
 
