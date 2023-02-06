@@ -816,7 +816,6 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
     R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
     
     for i in 1:d        
-        println(i)
         if i == 1
             all_moments = first[2:2*k+2]
         else
