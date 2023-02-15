@@ -44,6 +44,8 @@ And again, by setting the polynomials equal to the empirical moments, we can the
 
 ## Generate and sample from Gaussian Mixture Models
 
+### Generation
+
 ```@docs
 makeCovarianceMatrix
 ```
@@ -54,7 +56,7 @@ Note that the entries of the resulting covariance matrices are generated from a 
 ```@docs
 generateGaussians
 ```
-The parameters are returned as a tuple, with weights in a 1D vector, means as a k x d array, and variances as a k x d x d array.  Note that each entry of each parameter is generated from a normal distribution centered at 0 with variance 1.
+The parameters are returned as a tuple, with weights in a 1D vector, means as a k x d array, and variances as a k x d x d array if `diagonal` is false or as a list of `Diagonal{Float64, Vector{Float64}}` if `diagonal` is true to save memory.  Note that each entry of each parameter is generated from a normal distribution centered at 0 with variance 1.
 
  ``\\~\\``
 
@@ -65,12 +67,14 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
 
  ``\\~\\``
  
+### Computing moments
+
 ```@docs
 sampleMoments
 diagonalPerfectMoments
 densePerfectMoments
 ```
-Both expect parameters to be given with weights in a 1D vector, means as a k x d array, and variances as a k x d x d array.
+These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for dense covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
 
  ``\\~\\``
 
@@ -79,10 +83,16 @@ Both expect parameters to be given with weights in a 1D vector, means as a k x d
 ```@docs
 build1DSystem
 ```
+This uses the usual recursive formula for moments of a univariate Gaussian in terms of the mean and variance, and then takes a convex combination with either variable mixing coefficients or the provided mixing coefficients.
+
+ ``\\~\\``
 
 ```@docs
 selectSol
 ```
+Statistically significant means has positive variances here.  This is used to select which solution from the parameter homotopy will be used.
+
+ ``\\~\\``
 
 ```@docs
 tensorPower
@@ -91,10 +101,20 @@ tensorPower
 ```@docs
 convert_indexing
 ```
+As far as I am aware, the only closed form formula for the mixed dimensional moments of a multivariate Gaussian is that provided by Jo``\~{a}``o M. Pereira, Joe Kileel, and Tamara G. Kolda in [Tensor Moments of Gaussian Mixture Models: Theory and Applications](https://arxiv.org/abs/2202.06930).  However, the tensor moments are indexed in a different way than the multivariate moment notation we used.  Let  ``m_{a_1\cdots a_n}`` be a d-th order multivariate moment and let ``M_{i_1\cdots i_d}^{(d)}`` be an entry of the d-th order tensor moment.  Then ``m_{a_1\cdots a_n}=M_{i_1\cdots i_d}^{(d)}`` where 
+``a_j=|\{i_k=j\}|``.  Note that due to symmetry, the indexing of the tensor moment is non-unique.  For example, ``m_{102} = M_{133}^{(3)}=M_{331}^{(3)}=M_{313}^{(3)}=m_{102}``.
+
+ ``\\~\\``
 
 ```@docs
 mixedMomentSystem
 ```
+
+The final step in our method of moments parameter recovery for non-diagonal covariance matrices is building and solving a system of ``N:=\frac{k}{2}(d^2-d)`` linear equations in the same number of unknowns to fill in the off diagonal.  The polynomial for ``m_{a_1\cdots a_n}`` is linear if all but two ``a_i=0`` and at least one ``a_1=1``.  There are ``n^2-n`` of these for each order ``\geq2``, so we need these equations for up to ``\lceil \frac{k}{2}\rceil``-th order. 
+
+Note: the polynomial is still linear when 3 ``a_i=1`` and the rest of the ``a_i`` are 0 but this complicates generating the system so we did not include those.
+ 
+Again referring back to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
 
 ## Index
 

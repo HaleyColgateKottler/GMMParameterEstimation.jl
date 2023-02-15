@@ -52,7 +52,7 @@ function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
 end
 
 """
-getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Vector)
+    getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Vector)
 
 Generate a Gaussian mixture model sample with `numb` entries, mixing coefficients `w`, means `means`, and covariances `covariances`.
 """
@@ -106,7 +106,7 @@ function densePerfectMoments(d, k, w, true_means, true_covariances)
 end
         
 """
-diagonalPerfectMoments(d, k, w, true_means, true_covariances)
+    diagonalPerfectMoments(d, k, w, true_means, true_covariances)
     
 Use the given parameters to compute the exact moments necessary for parameter estimation with diagonal covariance matrices.
 
