@@ -26,7 +26,7 @@ The main functionality of this package stems from
 ```@docs
 estimate_parameters
 ```
-which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).
+which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` depending on `k`.
 
 In one dimension, for a random variable ``X`` with density ``f`` we define the ``i``th moment as 
 ``m_i=E[X^i]=\int xf(x)dx``.  

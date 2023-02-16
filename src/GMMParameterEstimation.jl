@@ -3,6 +3,7 @@ using HomotopyContinuation
 using Distributions
 using LinearAlgebra
 using Combinatorics
+using JLD2
 
 export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments
 
@@ -433,28 +434,16 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k)
  
-    # Define the relabeling group action
-    relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
- 
-    # Solve the system using the first 3k moments for target1 solutions, 
-    # then pick the statistically significant solution that best matches moment 3k+1    
-    
-    # Generate random complex parameters for initial solution for monodromy method
-    temp_start = append!(randn(3*k) + im*randn(3*k))
-    temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
+    temp_moments = load("sys1_k" * string(k) * ".jld2", "moments")
+    R1_sols = load("sys1_k" * string(k) * ".jld2", "sols")
 
-    # Monodromy solve system with random complex parameters
-    R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
-        
-    relabeling = nothing
     vars = append!(a,s,y)
     # Parameter homotopy from random parameters to real parameters
-    solution1 = solve(system - m[1:3*k], solutions(R1); parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
+    solution1 = solve(system - m[1:3*k], R1_sols; parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
     
-    R1 = []
     system = []
-    temp_start = []
     temp_moments = []
+    R1_sols = []
     
     # Check for statistically significant solutions
     # Return the one closest to the given moment, and the number of statistically significant solutions
@@ -678,28 +667,17 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k)
  
-    # Define the relabeling group action
-    relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
- 
-    # Solve the system using the first 3k moments for target1 solutions, 
-    # then pick the statistically significant solution that best matches moment 3k+1    
-    
-    # Generate random complex parameters for initial solution for monodromy method
-    temp_start = append!(randn(3*k) + im*randn(3*k))
-    temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
-
-    # Monodromy solve system with random complex parameters
-    R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
+    temp_moments = load("sys1_k" * string(k) * ".jld2", "moments")
+    R1_sols = load("sys1_k" * string(k) * ".jld2", "sols")
         
     relabeling = nothing
     vars = append!(a,s,y)
     # Parameter homotopy from random parameters to real parameters
-    solution1 = solve(system - m[1:3*k], solutions(R1); parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
+    solution1 = solve(system - m[1:3*k], R1_sols; parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
     
-    R1 = []
     system = []
-    temp_start = []
     temp_moments = []
+    R1_sols = []
     
     # Check for statistically significant solutions
     # Return the one closest to the given moment, and the number of statistically significant solutions
