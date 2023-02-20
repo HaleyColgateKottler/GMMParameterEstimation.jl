@@ -1,12 +1,12 @@
 # GMMParameterEstimation.jl Documentation
 
-GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian k-mixture models using the method of moments. It works for general k with known mixing coefficients, and for k=2,3,4 for unknown mixing coefficients.
+GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian k-mixture models using the method of moments. It can potentially find the parameters for arbitrary `k` with known or unknown mixing coefficients.  However, since the number of possible solutions to the polynomial system that determines the first dimension parameters and mixing coefficients for ``k>4`` is unknown, for the unknown mixing coefficient case with ``k>4`` failure of the package to find the parameters might occur if an insufficient number of solutions to the system were found
 
 ```@contents
 ```
 
 ## Example
-The following code snippet will use the given moments to return an estimate of the parameters using the method of moments.
+The following code snippet will use the given moments to return an estimate of the parameters using the method of moments with unknown mixing coefficients and dense covariance matrices.
 
 ```julia
 using GMMParameterEstimation
@@ -15,8 +15,27 @@ k = 2
 first_moments = [1.0, 0.980, 1.938, 3.478, 8.909, 20.526, 64.303]
 diagonal_moments = [-0.580 5.682 -11.430 97.890 -341.161; -0.480 1.696 -2.650 11.872 -33.239]
 off_diag_system = Dict{Vector{Int64}, Float64}([0, 1, 2] => -1.075, [1, 0, 1] => -0.252, [1, 2, 0] => 6.021, [1, 0, 2] => 1.117, [1, 1, 0] => -0.830, [0, 1, 1] => 0.884)
-pass, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moments, diagonal_moments, off_diag_system)
+is_solution_found, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moments, diagonal_moments, off_diag_system)
 ```
+
+### Inputs:
+
+1. The number of dimensions `d`
+
+2. The number of mixture components `k`
+
+3. A list of the first ``3k+1`` moments (including moment 0) of the first dimension as `first_moments`
+
+4. A matrix where row `i` contains the first ``2k+1`` moments (not including moment 0) of the `i`th dimension as `diagonal_moments`
+
+5. A dictionary mapping the index of a mixed dimensional moment as a list of integers to the corresponding moment `off_diag_system` (See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for clarrification on which moments to include.)
+
+
+### Outputs:
+
+1. An indicator of success in finding the parameters `is_solution_found`
+
+2. A tuple of the parameters `(mixing_coefficients, means, covariances)` 
 ``\\~\\``
  
  
@@ -28,17 +47,17 @@ estimate_parameters
 ```
 which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` depending on `k`.
 
-In one dimension, for a random variable ``X`` with density ``f`` we define the ``i``th moment as 
+In one dimension, for a random variable ``X`` with density ``f`` define the ``i``th moment as 
 ``m_i=E[X^i]=\int xf(x)dx``.  
-For a Gaussian mixture model, this results in a polynomial in the parameters.  For a sample ``\{y_1,y_2,\dots,y_N\}``, we define the ``i``th sample moment as 
+For a Gaussian mixture model, this results in a polynomial in the parameters.  For a sample ``\{y_1,y_2,\dots,y_N\}``, define the ``i``th sample moment as 
 ``\overline{m_i}=\frac{1}{N}\sum_{j=1}^N y_j^i``.  
 The sample moments approach the true moments as ``N\rightarrow\infty``, so by setting the polynomials equal to the empirical moments, we can then solve the polynomial system to recover the parameters.
 
-For a multivariate random variable ``X`` with density ``f_X`` we define the moments as 
+For a multivariate random variable ``X`` with density ``f_X`` define the moments as 
 ``m_{i_1,\dots,i_n} = E[X_1^{i_1}\cdots X_n^{i_n}] = \int\cdots\int x_1^{i_1}\cdots x_n^{i_n}f_X(x_1,\dots,x_n)dx_1\cdots dx_n`` 
 and the empirical moments as 
 ``\overline{m}_{i_1,\dots,i_n} = \frac{1}{N}\sum_{j=1}^Ny_{j_1}^{i_1}\cdots y_{j_n}^{i_n}``.  
-And again, by setting the polynomials equal to the empirical moments, we can then solve the system of polynomials to recover the parameters.  However, choosing which moments becomes more complicated.
+And again, by setting the polynomials equal to the empirical moments, we can then solve the system of polynomials to recover the parameters.  However, choosing which moments becomes more complicated.  If we know the mixing coefficients, we can use the first ``2k+1`` moments of each dimension to find the means and the diagonal entries of the covariance matrices.  If we do not know the mixing coefficients, we need the first ``3k`` moments of the first dimension to also find the mixing coefficients.  See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for which moments to include to fill in the off-diagonals of the covariance matrices if needed.
 
  ``\\~\\``
 
@@ -101,7 +120,7 @@ tensorPower
 ```@docs
 convert_indexing
 ```
-As far as I am aware, the only closed form formula for the mixed dimensional moments of a multivariate Gaussian is that provided by Jo``\~{a}``o M. Pereira, Joe Kileel, and Tamara G. Kolda in [Tensor Moments of Gaussian Mixture Models: Theory and Applications](https://arxiv.org/abs/2202.06930).  However, the tensor moments are indexed in a different way than the multivariate moment notation we used.  Let  ``m_{a_1\cdots a_n}`` be a d-th order multivariate moment and let ``M_{i_1\cdots i_d}^{(d)}`` be an entry of the d-th order tensor moment.  Then ``m_{a_1\cdots a_n}=M_{i_1\cdots i_d}^{(d)}`` where 
+To our knowledge, the only closed form formula for the mixed dimensional moments of a multivariate Gaussian is that provided by Jo``\~{a}``o M. Pereira, Joe Kileel, and Tamara G. Kolda in [Tensor Moments of Gaussian Mixture Models: Theory and Applications](https://arxiv.org/abs/2202.06930).  However, the tensor moments are indexed in a different way than the multivariate moment notation we used.  Let  ``m_{a_1\cdots a_n}`` be a d-th order multivariate moment and let ``M_{i_1\cdots i_d}^{(d)}`` be an entry of the d-th order tensor moment.  Then ``m_{a_1\cdots a_n}=M_{i_1\cdots i_d}^{(d)}`` where 
 ``a_j=|\{i_k=j\}|``.  Note that due to symmetry, the indexing of the tensor moment is non-unique.  For example, ``m_{102} = M_{133}^{(3)}=M_{331}^{(3)}=M_{313}^{(3)}=m_{102}``.
 
  ``\\~\\``
@@ -114,7 +133,7 @@ The final step in our method of moments parameter recovery for non-diagonal cova
 
 Note: the polynomial is still linear when 3 ``a_i=1`` and the rest of the ``a_i`` are 0 but this complicates generating the system so we did not include those.
  
-Again referring back to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
+Referring back to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
 
 ## Index
 
