@@ -45,7 +45,7 @@ The main functionality of this package stems from
 ```@docs
 estimate_parameters
 ```
-which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` depending on `k`.
+which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases with ``k\in\{2,3,4\}`` load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` for a slight speedup.
 
 In one dimension, for a random variable ``X`` with density ``f`` define the ``i``th moment as 
 ``m_i=E[X^i]=\int xf(x)dx``.  
@@ -58,6 +58,8 @@ For a multivariate random variable ``X`` with density ``f_X`` define the moments
 and the empirical moments as 
 ``\overline{m}_{i_1,\dots,i_n} = \frac{1}{N}\sum_{j=1}^Ny_{j_1}^{i_1}\cdots y_{j_n}^{i_n}``.  
 And again, by setting the polynomials equal to the empirical moments, we can then solve the system of polynomials to recover the parameters.  However, choosing which moments becomes more complicated.  If we know the mixing coefficients, we can use the first ``2k+1`` moments of each dimension to find the means and the diagonal entries of the covariance matrices.  If we do not know the mixing coefficients, we need the first ``3k`` moments of the first dimension to also find the mixing coefficients.  See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for which moments to include to fill in the off-diagonals of the covariance matrices if needed.
+
+On a standard laptop we have successfully recovered parameters with unknown mixing coefficients for ``k\leq 4`` and known mixing coefficients for ``k\leq 5``, with ``d\leq 10^5`` for the diagonal covariance case and ``d\leq 50`` for the dense covariance case.  Higher `k` values or higher `d` values have led to issues with running out of memory.
 
  ``\\~\\``
 
