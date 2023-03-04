@@ -64,6 +64,19 @@ function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, co
     r = rand(m, numb)
     return r
 end
+    
+"""
+    getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
+
+Generate a Gaussian mixture model sample with `numb` entries, mixing coefficients `w`, means `means`, and covariances `covariances`.
+"""
+function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
+    k = size(w)[1]
+    gaussians = [(means[i, 1:end], Matrix(covariances[i, 1:end, 1:end])) for i in 1:k]
+    m = MixtureModel(MvNormal, gaussians, w)
+    r = rand(m, numb)
+    return r
+end
 
 """
     densePerfectMoments(d, k, w, true_means, true_covariances)
@@ -156,7 +169,7 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
 
         target = k*(d^2-d)/2
         for i in 1:d-1
-            for j in i+1:d 
+            for j in i+1:d                 
                 n = 2
                 temp = Int64.(zeros(d))
                 temp[i] = 1
@@ -434,8 +447,8 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     (system, polynomial) = build1DSystem(k, 3*k)
  
     if k in [2,3,4]
-        temp_moments = load("sys1_k" * string(k) * ".jld2", "moments")
-        R1_sols = load("sys1_k" * string(k) * ".jld2", "sols")
+        temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
+        R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
     else
         target1 = (k==1) ? 2 : target2
         
@@ -467,14 +480,14 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     solution1 = []
     num_pos_mix = size(pos_mixing)[1]
     if num_pos_mix == 0
-        best_sol = false
+        best_sol = "No all positive mixing coefficient solutions"
         num_sols = 0
     else    
         # Check positive variances
         stat_significant1 = filter(r -> all(r[k+1:2*k] .> 0), pos_mixing);
         num_sols = size(stat_significant1)[1]
         if num_sols == 0
-            best_sol = false
+            best_sol = "No all positive variance solutions in 1st dimension"
         else
             best_sols1 = [];
             # Create list of differences between moment and polynomial(statistically significant solutions)
@@ -494,13 +507,13 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     pos_mixing = []
         
     # If there aren't any statistically significant solutions, return false
-    if best_sol == false
-        return (false, (nothing,nothing,nothing))
+    if typeof(best_sol) == String
+        return (best_sol, (nothing,nothing,nothing))
     end
         
     # Separate out the mixing coefficients, variances, and means
     mixing_coefficients = best_sol[1:k]
-    
+        
     @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
     
     means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
@@ -529,7 +542,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
         if best_sol_i == false
-            return (false, (nothing,nothing,nothing))
+            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
         end 
         for j in 1:k
             covariances[j, i, i] = best_sol_i[j]
@@ -614,7 +627,7 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
         if best_sol_i == false
-            return (false, (nothing,nothing,nothing))
+            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
         end 
 
         for j in 1:k
@@ -682,8 +695,8 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     (system, polynomial) = build1DSystem(k, 3*k)
  
     if k in [2,3,4]
-        temp_moments = load("sys1_k" * string(k) * ".jld2", "moments")
-        R1_sols = load("sys1_k" * string(k) * ".jld2", "sols")
+        temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
+        R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
     else
         target1 = (k==1) ? 2 : target2
         
@@ -712,17 +725,18 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     # Filter out the statistically meaningful solutions (up to symmetry)
     # Check positive mixing coefficients
     pos_mixing  = filter(r -> all(r[1:k] .> 0), real_solutions(solution1)); 
+        
     solution1 = []
     num_pos_mix = size(pos_mixing)[1]
     if num_pos_mix == 0
-        best_sol = false
+        best_sol = "No all positive mixing coefficient solutions"
         num_sols = 0
     else    
         # Check positive variances
         stat_significant1 = filter(r -> all(r[k+1:2*k] .> 0), pos_mixing);
         num_sols = size(stat_significant1)[1]
         if num_sols == 0
-            best_sol = false
+            best_sol = "No all positive variance solutions in 1st dimension"
         else
             best_sols1 = [];
             # Create list of differences between moment and polynomial(statistically significant solutions)
@@ -740,10 +754,10 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     end
     polynomial = 0
     pos_mixing = []
-        
+                
     # If there aren't any statistically significant solutions, return false
-    if best_sol == false
-        return (false, (nothing,nothing,nothing))
+    if typeof(best_sol) == String
+        return (best_sol, (nothing,nothing,nothing))
     end
         
     # Separate out the mixing coefficients, variances, and means
@@ -778,7 +792,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
         if best_sol_i == false
-            return (false, (nothing,nothing,nothing))
+            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
         end 
         for j in 1:k
             covariances[j][i, i] = best_sol_i[j]
@@ -834,7 +848,7 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
         if best_sol_i == false
-            return (false, (nothing,nothing,nothing))
+            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
         end 
 
         for j in 1:k
