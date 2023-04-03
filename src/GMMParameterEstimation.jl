@@ -390,13 +390,13 @@ function mixedMomentSystem(d, k, mixing, ms, vs)
             end
             n = Int64(ceil((k+1)/2)) + 1
             temp = Int64.(zeros(d))
-            temp[i] = 1
-            temp[j] = ceil((k+1)/2)
+            temp[j] = 1
+            temp[i] = ceil((k+1)/2)
             push!(indexes[string(n)], temp)
             if k % 2 != 0
                 temp = Int64.(zeros(d))
-                temp[i] = (k+1)/2
-                temp[j] = 1
+                temp[j] = (k+1)/2
+                temp[i] = 1
                 push!(indexes[string(n)], temp)
             end
         end
