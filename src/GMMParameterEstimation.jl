@@ -5,7 +5,7 @@ using LinearAlgebra
 using Combinatorics
 using JLD2
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle, 
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool)
