@@ -5,7 +5,7 @@ using LinearAlgebra
 using Combinatorics
 using JLD2
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle, 
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool)
@@ -454,7 +454,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
         temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
         R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
     else
-        target1 = (k==1) ? 2 : target2
+        target1 = target2
         
         relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
 
@@ -701,13 +701,13 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
         temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
         R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
     else
-        target1 = (k==1) ? 2 : target2
+        target1 = target2
         relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
 
         temp_start = append!(randn(3*k) + im*randn(3*k))
         temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
         
-        R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=true)
+        R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
         
         R1_sols = solutions(R1)
         relabeling = ()
@@ -872,13 +872,13 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
 end
 
 """
-    k1estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64})
+    estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64})
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian model from the moments.
 
 For the unknown mixing coefficient diagonal covariance matrix case, `first` should be a list of moments 0 through 3 for the first dimension, and `second` should be a matrix of moments 1 through 3 for the remaining dimensions.
 """
-function k1estimate_parameters(d, first, second)
+function estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64})
     means = Array{Float64}(undef, (1,d))
     covariances = [Diagonal{Float64}(undef, d)]
     
@@ -893,13 +893,13 @@ function k1estimate_parameters(d, first, second)
 end
 
 """
-    k1estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
+    estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
 For the unknown mixing coefficient dense covariance matrix case, `first` should be a list of moments 0 through 3 for the first dimension, `second` should be a matrix of moments 1 through 3 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
 """
-function k1estimate_parameters(d, first, second, third)
+function estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64}, third::Dict{Vector{Int64}, Float64})
     @var vs[1:k, 1:d, 1:d]
     means = Array{Float64}(undef, (1,d))
     covariances::Array{Union{Variable, Float64}} = reshape([vs...], (1, d, d))
@@ -918,5 +918,153 @@ function k1estimate_parameters(d, first, second, third)
         covariances[1, indexing[2], indexing[1]] = covar        
     end
     return (means, covariances)
+end
+
+"""
+    cycle_for_weights(k::Integer, sample; start_dim = 1)
+
+Starting with `start_dim` cycle over the dimensions of `sample` until candidate mixing coefficients are found.
+"""
+function cycle_for_weights(k::Integer, sample; start_dim = 1)
+    (d, sample_size) = size(sample)
+    mixing_coeffs = false
+    while (mixing_coeffs == false) & (start_dim <= d)
+        first_moms = Vector{Float64}(undef, 3*k+1)
+        first_moms[1] = 1.0
+        for j in 1:3*k
+            first_moms[j+1] = mean(sample[start_dim, i]^j for i in 1:sample_size)
+        end
+        
+        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
+        
+        if first_pass == true
+            mixing_coeffs = weights
+        end
+        start_dim += 1
+    end
+    return(mixing_coeffs, start_dim)
+end
+    
+    
+"""
+    moments_for_cycle(d, k, w, means, covars, diagonal)
+
+Calculate 0 through 3`k`+1 denoised moments for every dimension.
+
+Used as input for cycling over the dimensions to find candidate mixing coefficients.
+"""
+function moments_for_cycle(d, k, w, means, covars, diagonal)
+    moments = Array{Float64}(undef, (d, 3*k+1))
+    @var s[1:k] y[1:k] a[1:k]
+    (system, polynomial) = build1DSystem(k, 3*k+1)
+    
+    if diagonal
+        for i in 1:d
+            true_params = append!(copy(w), [covars[j][i,i] for j in 1:k], [means[j,i] for j in 1:k])
+            all_moments = [p([a; s; y] => true_params) for p in system]
+            if typeof(all_moments[1]) != Float64
+                moments[i, 1:end] = to_number.(expand.(all_moments))
+            else
+                moments[i, 1:end] = all_moments
+            end
+        end
+    else
+        for i in 1:d
+            true_params = append!(copy(w), [covars[j,i,i] for j in 1:k], [means[j,i] for j in 1:k])
+            all_moments = [p([a; s; y] => true_params) for p in system]
+            if typeof(all_moments[1]) != Float64
+                moments[i, 1:end] = to_number.(expand.(all_moments))
+            else
+                moments[i, 1:end] = all_moments
+            end
+        end
+    end
+    return moments
+end
+
+"""
+    dimension_cycle(k::Integer, sample::Matrix{Float64}, diagonal)
+
+Cycle over the dimensions of the `sample` to find candidate mixing coefficients, then solve for parameters based on those.
+
+This will take longer than estimate_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.
+"""
+function dimension_cycle(k::Integer, sample::Matrix{Float64}, diagonal::Bool)
+    (d, sample_size) = size(sample)
+    first_moms, diagonal_moms, indexes = sampleMoments(sample, k)
+    start_dim = 1
+        
+    stop = false
+    while (stop != true) & (start_dim <= d)
+        mixing_coeffs, start_dim = cycle_for_weights(k, sample; start_dim = start_dim)
+            
+        if mixing_coeffs != false
+            if diagonal
+                pass, (weights, means, covariances) = estimate_parameters(d, k, mixing_coeffs, first_moms, diagonal_moms)
+            else
+                pass, (weights, means, covariances) = estimate_parameters(d, k, mixing_coeffs, first_moms, diagonal_moms, indexes)
+            end
+        else
+            pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
+        end
+        if pass == true
+            stop = true
+        end
+    end
+    return pass, (weights, means, covariances)
+end
+
+"""
+    dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, diagonal::Bool)
+
+Cycle over the dimensions of `cycle_moments` to find candidate mixing coefficients, then solve for parameters based on those.
+
+This will take longer than estimate_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.  `cycle_moments` should be an array of the 0 through 3`k`+1 moments for each dimension. If no `indexes` is given, assumes diagonal covariance matrices.
+"""
+function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64})    
+    first_dim = 1
+    stop = false
+    first_pass = false
+    while (first_dim <= d) & (stop == false)
+        first_moms = cycle_moments[first_dim, 1:end]
+        
+        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
+        if first_pass == true
+            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+1])
+        end
+        
+        if pass == true
+            stop = true
+        end
+        first_dim += 1
+        println(pass)
+    end
+    if first_pass != true
+        pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
+    end
+    return pass, (weights, means, covariances)
+end
+
+function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, indexes::Dict{Vector{Int64}, Float64})    
+    first_dim = 1
+    stop = false
+    first_pass = false
+    while (first_dim <= d) & (stop == false)
+        first_moms = cycle_moments[first_dim, 1:end]
+        
+        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
+        if first_pass == true
+            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+1], indexes)
+        end
+        
+        if pass == true
+            stop = true
+        end
+        first_dim += 1
+    end
+    if first_pass != true
+        pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
+    end
+    return pass, (weights, means, covariances)
 end
 end
