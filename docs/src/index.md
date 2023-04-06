@@ -12,9 +12,9 @@ The following code snippet will use the given moments to return an estimate of t
 using GMMParameterEstimation
 d = 3
 k = 2
-first_moments = [1.0, 0.980, 1.938, 3.478, 8.909, 20.526, 64.303]
-diagonal_moments = [-0.580 5.682 -11.430 97.890 -341.161; -0.480 1.696 -2.650 11.872 -33.239]
-off_diag_system = Dict{Vector{Int64}, Float64}([0, 1, 2] => -1.075, [1, 0, 1] => -0.252, [1, 2, 0] => 6.021, [1, 0, 2] => 1.117, [1, 1, 0] => -0.830, [0, 1, 1] => 0.884)
+first_moments = [1.0, -0.67, 2.44, -4.34, 17.4, -46.16, 201.67]
+diagonal_moments = [-0.28 2.11 -2.46 15.29 -31.77; 0.4 4.25 3.88 54.75 59.10]
+off_diag_system = Dict{Vector{Int64}, Float64}([2, 1, 0] => 1.8506, [1, 0, 1] => -0.329, [2, 0, 1] => 0.0291, [0, 2, 1] => 1.5869, [1, 1, 0] => -1.374, [0, 1, 1] => -0.333)
 is_solution_found, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moments, diagonal_moments, off_diag_system)
 ```
 
@@ -45,7 +45,7 @@ The main functionality of this package stems from
 ```@docs
 estimate_parameters
 ```
-which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases with ``k\in\{2,3,4\}`` load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` for a slight speedup.
+which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases with ``k\in\{2,3,4\}`` load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` for a slight speedup.  If `k` is not specified, k=1 will be assumed, and the resulting polynomial system will be solved explicitly and directly.   
 
 In one dimension, for a random variable ``X`` with density ``f`` define the ``i``th moment as 
 ``m_i=E[X^i]=\int xf(x)dx``.  
@@ -59,9 +59,15 @@ and the empirical moments as
 ``\overline{m}_{i_1,\dots,i_n} = \frac{1}{N}\sum_{j=1}^Ny_{j_1}^{i_1}\cdots y_{j_n}^{i_n}``.  
 And again, by setting the polynomials equal to the empirical moments, we can then solve the system of polynomials to recover the parameters.  However, choosing which moments becomes more complicated.  If we know the mixing coefficients, we can use the first ``2k+1`` moments of each dimension to find the means and the diagonal entries of the covariance matrices.  If we do not know the mixing coefficients, we need the first ``3k`` moments of the first dimension to also find the mixing coefficients.  See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for which moments to include to fill in the off-diagonals of the covariance matrices if needed.
 
-On a standard laptop we have successfully recovered parameters with unknown mixing coefficients for ``k\leq 4`` and known mixing coefficients for ``k\leq 5``, with ``d\leq 10^5`` for the diagonal covariance case and ``d\leq 50`` for the dense covariance case.  Higher `k` values or higher `d` values have led to issues with running out of memory.
+On a standard laptop we have successfully recovered parameters with unknown mixing coefficients for ``k\leq 4`` and known mixing coefficients for ``k\leq 5``, with ``d\leq 10^5`` for the diagonal covariance case and ``d\leq 50`` for the dense covariance case.  Higher `k` values or higher `d` values have led to issues with running out of RAM.
 
  ``\\~\\``
+
+One potential difficulty in estimating the mixing coefficients is the resulting dependence on higher moments in the first dimension.  In sample data, if another dimension leads to more accurate moments, using that dimension to recover mixing coefficients and then proceeding can address this difficulty.  The following function was designed for this purpose.  Note that it can either be provided with an d x n sample, or a d x 3k+1 array of moments 0 through 3k for each dimension, augmented by a dictionary of the off-diagonal moments if seeking non-diagonal covariance matrices.
+
+```@docs
+dimension_cycle
+```
 
 ## Generate and sample from Gaussian Mixture Models
 
@@ -131,7 +137,7 @@ To our knowledge, the only closed form formula for the mixed dimensional moments
 mixedMomentSystem
 ```
 
-The final step in our method of moments parameter recovery for non-diagonal covariance matrices is building and solving a system of ``N:=\frac{k}{2}(d^2-d)`` linear equations in the same number of unknowns to fill in the off diagonal.  The polynomial for ``m_{a_1\cdots a_n}`` is linear if all but two ``a_i=0`` and at least one ``a_1=1``.  There are ``n^2-n`` of these for each order ``\geq2``, so we need these equations for up to ``\lceil \frac{k}{2}\rceil``-th order. 
+The final step in our method of moments parameter recovery for non-diagonal covariance matrices is building and solving a system of ``N:=\frac{k}{2}(d^2-d)`` linear equations in the same number of unknowns to fill in the off diagonal.  The polynomial for ``m_{a_1\cdots a_n}`` is linear if all but two ``a_i=0`` and at least one ``a_1=1``.  There are ``n^2-n`` of these for each order ``\geq2``, so we need these equations for up to ``\lceil \frac{k}{2}\rceil``-th order.  These moments should be provided to the solver using minimal possible degree, and if only half the possible moments for a degree are necessary (k/2 is even) provide the moments with higher power in earlier dimension, e.g. use [2,1,0] instead of [1,2,0].
 
 Note: the polynomial is still linear when 3 ``a_i=1`` and the rest of the ``a_i`` are 0 but this complicates generating the system so we did not include those.
  
