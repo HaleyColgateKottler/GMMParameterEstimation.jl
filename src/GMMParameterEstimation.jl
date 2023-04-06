@@ -987,7 +987,7 @@ end
 
 Cycle over the dimensions of the `sample` to find candidate mixing coefficients, then solve for parameters based on those.
 
-This will take longer than estimate_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.
+This will take longer than estimate\_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.
 """
 function dimension_cycle(k::Integer, sample::Matrix{Float64}, diagonal::Bool)
     (d, sample_size) = size(sample)
@@ -1019,7 +1019,7 @@ end
 
 Cycle over the dimensions of `cycle_moments` to find candidate mixing coefficients, then solve for parameters based on those.
 
-This will take longer than estimate_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.  `cycle_moments` should be an array of the 0 through 3`k`+1 moments for each dimension. If no `indexes` is given, assumes diagonal covariance matrices.
+This will take longer than estimate\_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.  `cycle_moments` should be an array of the 0 through 3`k` moments for each dimension. If no `indexes` is given, assumes diagonal covariance matrices.
 """
 function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64})    
     first_dim = 1
