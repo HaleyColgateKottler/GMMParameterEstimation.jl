@@ -294,8 +294,8 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
                 
                 n = Int64(ceil((k+1)/2)) + 1
                 temp = Int64.(zeros(d))
-                temp[i] = 1
-                temp[j] = ceil((k+1)/2)
+                temp[j] = 1
+                temp[i] = ceil((k+1)/2)
                 
                 sample_moment = 0
                 for j in 1:sample_size
@@ -310,8 +310,8 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
                 
                 if k % 2 != 0
                     temp = Int64.(zeros(d))
-                    temp[i] = (k+1)/2
-                    temp[j] = 1
+                    temp[j] = (k+1)/2
+                    temp[i] = 1
                     sample_moment = 0
                     for j in 1:sample_size
                         temp_moment = 1
@@ -1140,10 +1140,16 @@ function dimension_cycle(k::Integer, sample::Matrix{Float64}, diagonal::Bool)
     first_moms, diagonal_moms, indexes = sampleMoments(sample, k)
     start_dim = 1
         
+    pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
+    
+    first_pass = true
     stop = false
     while (stop != true) & (start_dim <= d)
         mixing_coeffs, start_dim = cycle_for_weights(k, sample; start_dim = start_dim)
-            
+        if start_dim > 2
+            first_pass = false
+        end
+        
         if mixing_coeffs != false
             if diagonal
                 pass, (weights, means, covariances) = estimate_parameters(d, k, mixing_coeffs, first_moms, diagonal_moms)
@@ -1157,7 +1163,7 @@ function dimension_cycle(k::Integer, sample::Matrix{Float64}, diagonal::Bool)
             stop = true
         end
     end
-    return pass, (weights, means, covariances)
+    return pass, first_pass, (weights, means, covariances)
 end
 
 """
