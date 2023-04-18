@@ -24,11 +24,13 @@ is_solution_found, (mixing_coefficients, means, covariances) = estimate_paramete
 
 2. The number of mixture components `k`
 
-3. A list of the first ``3k+1`` moments (including moment 0) of the first dimension as `first_moments`
+3. Optional: A vector of mixing coefficients `w` with length `k`
 
-4. A matrix where row `i` contains the first ``2k+1`` moments (not including moment 0) of the `i`th dimension as `diagonal_moments`
+4. A list of the first ``3k+1`` moments (including moment 0) of the first dimension as `first_moments`
 
-5. A dictionary mapping the index of a mixed dimensional moment as a list of integers to the corresponding moment `off_diag_system` (See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for clarrification on which moments to include.)
+5. A matrix where row `i` contains the first ``2k+1`` moments (not including moment 0) of the `i`th dimension as `diagonal_moments`
+
+6. Optional: A dictionary mapping the index of a mixed dimensional moment as a list of integers to the corresponding moment `off_diag_system` (See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for clarrification on which moments to include.)
 
 
 ### Outputs:
@@ -48,7 +50,7 @@ estimate_parameters
 which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases with ``k\in\{2,3,4\}`` load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` for a slight speedup.  If `k` is not specified, k=1 will be assumed, and the resulting polynomial system will be solved explicitly and directly.   
 
 In one dimension, for a random variable ``X`` with density ``f`` define the ``i``th moment as 
-``m_i=E[X^i]=\int xf(x)dx``.  
+``m_i=E[X^i]=\int x^if(x)dx``.  
 For a Gaussian mixture model, this results in a polynomial in the parameters.  For a sample ``\{y_1,y_2,\dots,y_N\}``, define the ``i``th sample moment as 
 ``\overline{m_i}=\frac{1}{N}\sum_{j=1}^N y_j^i``.  
 The sample moments approach the true moments as ``N\rightarrow\infty``, so by setting the polynomials equal to the empirical moments, we can then solve the polynomial system to recover the parameters.
