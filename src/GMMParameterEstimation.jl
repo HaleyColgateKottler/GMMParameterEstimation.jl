@@ -1161,7 +1161,7 @@ function dimension_cycle(k::Integer, sample::Matrix{Float64}, diagonal::Bool)
 end
 
 """
-    dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, diagonal::Bool)
+    dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, indexes::Dict{Vector{Int64}, Float64})
 
 Cycle over the dimensions of `cycle_moments` to find candidate mixing coefficients, then solve for parameters based on those.
 
@@ -1176,14 +1176,13 @@ function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64})
         
         first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
         if first_pass == true
-            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+1])
+            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2])
         end
         
         if pass == true
             stop = true
         end
         first_dim += 1
-        println(pass)
     end
     if first_pass != true
         pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
@@ -1200,7 +1199,7 @@ function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, 
         
         first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
         if first_pass == true
-            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+1], indexes)
+            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2], indexes)
         end
         
         if pass == true
