@@ -5,7 +5,7 @@ using LinearAlgebra
 using Combinatorics
 using JLD2
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle, equalMixCovarianceKnown_moments
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool)
@@ -151,11 +151,79 @@ function diagonalPerfectMoments(d, k, w, true_means, true_covariances)
         
     return (first_moms, diagonal_moms)
 end
+        
+"""
+    equalMixCovarianceKnown_moments(k, mean, shared_cov)
+    
+Use the given parameters to compute the exact moments necessary for parameter estimation with equal mixing coefficients and shared known covariances.
+
+Returns moments 0 to `k` for the first dimension, and moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+"""
+function equalMixCovarianceKnown_moments(k, mean, shared_cov)
+    d = size(shared_cov)[1]
+    @var ms[1:k,1:d]
+    
+    @var s[1:k], y[1:k] #y means, s sigma
+    first_system = build1DSystem(k, k+1, ones(k)/k)[1][2:end]
+    first_moms = evaluate(first_system, s => repeat([shared_cov[1,1]],k))
+    first_moms = evaluate(first_moms, y => mean[1:k,1])
+    
+    mean_systems = Array{Union{Expression, Float64}}(undef, (k,d-1))
+
+    for i in 1:d-1
+        mean_systems[1,i] = expand(sum(ms[1:k,i+1])/k)
+    end
+        
+    for n in 2:k #order of tensor moment
+        for i in 1:k
+            for j in 0:floor((n)/2)
+                coefficient = (1/k)*binomial(n, Int64(2*j))*factorial(Int64(2*j))/(factorial(Int64(j))*(2^j))
+                means = tensorPower(ms[i, 1:end], Int64(n - 2*j))
+                variances = tensorPower(shared_cov, Int64(j))
+                partial_tensor = coefficient .* reshape(kron(means, variances), Integer.(tuple(d * ones(n)...)))
+                
+                for l in 1:d-1
+                    key = Int64.(zeros(d))
+                    key[1] = n-1
+                    key[l+1] = 1
+                                    
+                    ind = convert_indexing(key, d)
+                    polynomial = 0*ms[1,1]
+                    for item in collect(Combinatorics.permutations(ind))
+                        polynomial += partial_tensor[item...]
+                    end
+                    if typeof(polynomial) == Float64
+                        polynomial = polynomial/factorial(n)
+                    else
+                        polynomial = expand(polynomial/factorial(n))
+                    end
+                    
+                    if isassigned(mean_systems, (l-1)*(k) + n)
+                        mean_systems[n,l] += polynomial
+                    else
+                        mean_systems[n,l] = polynomial
+                    end
+                end
+            end
+        end
+    end
+    
+    second_moms = zeros(k,d-1)
+    for i in 1:d-1
+        system = mean_systems[1:end, i]
+        for j in 1:k
+            second_moms[j,i] = system[j](ms=>mean)
+        end
+    end
+    
+    # solve the systems and put them into ms
+    return (first_moms, second_moms)
+end
 
 """
     sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
     
-Use the sample to compute the moments necessary for parameter estimation using method of moments.
+Use the sample to compute the moments necessary for parameter estimation using method of moments with general covariance matrices and mixing coefficients.
 
 Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system if `diagonal` is false.
 """
@@ -918,6 +986,84 @@ function estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{
         covariances[1, indexing[2], indexing[1]] = covar        
     end
     return (means, covariances)
+end
+
+"""
+    estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms::Vector{Float64}, second_moms::Matrix{Float64})
+
+Compute an estimate for the means of a Gaussian `k`-mixture model with equal mixing coefficients and known shared covariances from the moments.
+
+The shared covariance matrix `shared_cov` will determine the dimension. Then `first_moms` should be a list of moments 0 through k for the first dimension, `second_moms` should be a matrix of moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+"""
+function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms::Vector{Float64}, second_moms::Matrix{Float64})
+    d = size(shared_cov)[1]
+    
+    @var ms[1:k, 1:d]    
+    meansEst::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
+    @var s[1:k], y[1:k] #y means, s sigma
+    first_system = build1DSystem(k, k+1, ones(k)/k)[1][2:end]
+    first_system = evaluate(first_system, s => repeat([shared_cov[1,1]],k))
+    
+    sol1 = solve(first_system-first_moms, show_progress = false)
+    meansEst[1:k,1] = real_solutions(sol1)[1]
+    
+    mean_systems = Array{Expression}(undef, (k,d-1))
+
+    for i in 1:d-1
+        mean_systems[1,i] = expand(sum(ms[1:k,i+1])/k)
+    end
+        
+    for n in 2:k #order of tensor moment
+        for i in 1:k
+            for j in 0:floor((n)/2)
+                coefficient = (1/k)*binomial(n, Int64(2*j))*factorial(Int64(2*j))/(factorial(Int64(j))*(2^j))
+                means = tensorPower(meansEst[i, 1:end], Int64(n - 2*j))
+                variances = tensorPower(shared_cov, Int64(j))
+                partial_tensor = coefficient .* reshape(kron(means, variances), Integer.(tuple(d * ones(n)...)))
+                
+                for l in 1:d-1
+                    key = Int64.(zeros(d))
+                    key[1] = n-1
+                    key[l+1] = 1
+                                    
+                    ind = convert_indexing(key, d)
+                    polynomial = 0*ms[1,1]
+                    for item in collect(Combinatorics.permutations(ind))
+                        polynomial += partial_tensor[item...]
+                    end
+                    if typeof(polynomial) == Float64
+                        polynomial = polynomial/factorial(n)
+                    else
+                        polynomial = expand(polynomial/factorial(n))
+                    end
+                    
+                    if isassigned(mean_systems, (l-1)*(k) + n)
+                        mean_systems[n,l] += polynomial
+                    else
+                        mean_systems[n,l] = polynomial
+                    end
+                end
+            end
+        end
+    end
+    
+    for i in 1:d-1
+        system = mean_systems[1:end, i]
+        
+        target_vector = Vector{Float64}()
+        for j in 1:k
+            constant = system[j](ms=>zeros(size(ms)))
+            sample_moment = second_moms[j, i]
+            push!(target_vector, sample_moment - constant)
+        end
+        
+        vars = variables(system)
+        matrix_system = jacobian(System(system), zeros(size(system)[1]))
+        solution = [matrix_system\target_vector]
+        meansEst[1:k, i+1] = solution[1]
+    end
+    
+    return meansEst
 end
 
 """
