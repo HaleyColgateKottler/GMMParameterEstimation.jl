@@ -159,7 +159,7 @@ Use the given parameters to compute the exact moments necessary for parameter es
 
 Returns moments 0 to `k` for the first dimension, and moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
 """
-function equalMixCovarianceKnown_moments(k, mean, shared_cov)
+function equalMixCovarianceKnown_moments(k::Integer, mean::Matrix{Float64}, shared_cov::Matrix{Float64})
     d = size(shared_cov)[1]
     @var ms[1:k,1:d]
     
@@ -217,6 +217,54 @@ function equalMixCovarianceKnown_moments(k, mean, shared_cov)
     end
     
     # solve the systems and put them into ms
+    return (first_moms, second_moms)
+end
+
+"""
+    equalMixCovarianceKnown_moments(k, sample)
+    
+Use the given parameters to compute the sample moments necessary for parameter estimation with equal mixing coefficients and shared known covariances.
+
+Returns moments 0 to `k` for the first dimension, and moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+"""
+function equalMixCovarianceKnown_moments(k::Integer, sample::Matrix{Float64})
+    (d, sample_size) = size(sample)
+    @var ms[1:k,1:d]
+    
+    first_moms = Vector{Float64}(undef, k)
+    for j in 1:k
+        first_moms[j] = mean(sample[1,i]^j for i in 1:sample_size)
+    end
+        
+    second_moms = zeros(k,d-1)
+    for j in 1:k
+        second_moms[1,j] = mean(sample[j,i] for i in 1:sample_size)
+    end
+        
+    for n in 2:k #order of tensor moment
+        for i in 1:k
+            for j in 0:floor((n)/2)
+                for l in 1:d-1
+                    key = Int64.(zeros(d))
+                    key[1] = n-1
+                    key[l+1] = 1
+                                    
+                    sample_moment = 0
+                    for j in 1:sample_size
+                        temp_moment = 1
+                        for i in 1:d
+                            temp_moment *= sample[i, j]^(key[i])
+                        end
+                        sample_moment += temp_moment
+                    end
+                    sample_moment = sample_moment/sample_size
+                    
+                    second_moms[n,l] = sample_moment
+                end
+            end
+        end
+    end
+    
     return (first_moms, second_moms)
 end
 
@@ -1005,6 +1053,10 @@ function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms
     first_system = evaluate(first_system, s => repeat([shared_cov[1,1]],k))
     
     sol1 = solve(first_system-first_moms, show_progress = false)
+    real_sols = real_solutions(sol1)
+    
+    size(real_sols)[1] == 0 && (return (false, nothing))
+    
     meansEst[1:k,1] = real_solutions(sol1)[1]
     
     mean_systems = Array{Expression}(undef, (k,d-1))
@@ -1063,7 +1115,7 @@ function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms
         meansEst[1:k, i+1] = solution[1]
     end
     
-    return meansEst
+    return(true, meansEst)
 end
 
 """
