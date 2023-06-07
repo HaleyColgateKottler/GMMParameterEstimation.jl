@@ -124,6 +124,8 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
 sampleMoments
 diagonalPerfectMoments
 densePerfectMoments
+moments_for_cycle
+equalMixCovarianceKnown_moments
 ```
 These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for dense covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
 
