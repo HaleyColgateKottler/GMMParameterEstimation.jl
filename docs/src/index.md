@@ -93,13 +93,7 @@ One potential difficulty in estimating the mixing coefficients is the resulting 
 dimension_cycle
 ```
 
-## Checking Input Formatting
 
-To check you are formatting your inputs correctly, we have included
-
-```@docs
-checkInputs
-```
 
 ## Generate and sample from Gaussian Mixture Models
 

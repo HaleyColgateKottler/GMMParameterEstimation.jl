@@ -1,6 +1,6 @@
-using Documenter, HomotopyContinuation #, GMMParameterEstimation
-include("../src/GMMParameterEstimation.jl")
-using .GMMParameterEstimation
+using Documenter, HomotopyContinuation, GMMParameterEstimation
+# include("../src/GMMParameterEstimation.jl")
+# using .GMMParameterEstimation
 
 push!(LOAD_PATH,"../src/")
 
