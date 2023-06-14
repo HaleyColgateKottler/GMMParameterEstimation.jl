@@ -1,7 +1,8 @@
 using Documenter, HomotopyContinuation #, GMMParameterEstimation
 include("../src/GMMParameterEstimation.jl")
 using .GMMParameterEstimation
-#push!(LOAD_PATH,"../src/")
+
+push!(LOAD_PATH,"../src/")
 
 makedocs(sitename="GMMParameterEstimation.jl",
          modules = [GMMParameterEstimation],
