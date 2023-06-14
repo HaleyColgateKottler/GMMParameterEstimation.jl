@@ -157,7 +157,7 @@ end
     
 Use the given parameters to compute the exact moments necessary for parameter estimation with equal mixing coefficients and shared known covariances.
 
-Returns moments 0 to `k` for the first dimension, and moments ``m\_{je\_1+e\_i}`` for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+Returns moments 0 to `k` for the first dimension, and moments ```math m\\_{je\\_1+e\\_i}``` for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
 """
 function equalMixCovarianceKnown_moments(k::Integer, mean::Matrix{Float64}, shared_cov::Matrix{Float64})
     d = size(shared_cov)[1]
@@ -992,7 +992,7 @@ end
 
 Compute an estimate for the means of a Gaussian `k`-mixture model with equal mixing coefficients and known shared covariances from the moments.
 
-The shared covariance matrix `shared_cov` will determine the dimension. Then `first` should be a list of moments 0 through k for the first dimension, `second` should be a matrix of moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+The shared covariance matrix `shared_cov` will determine the dimension. Then `first` should be a list of moments 0 through k for the first dimension, `second` should be a matrix of moments ``m_{je_1+e_i}`` for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
 """
 function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64})
     d = size(shared_cov)[1]
@@ -1223,74 +1223,74 @@ function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, 
 end
 
 """
-    checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
 
-Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
 """
-function checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
-    (length(true_first) != 3k+1) && error("first must have length 3k+1")
-    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
-    (length(true_others) != k*d*(d-1)/2) && error("third must include kd(d-1)/2 entries")
-    for key in keys(true_others)
-        (count(x -> x>0, key) != 2) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
-        (count(x -> x==1, key) < 1) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+function checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
+    (length(first) != 3k+1) && error("first must have length 3k+1")
+    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+    (length(last) != k*d*(d-1)/2) && error("last must include kd(d-1)/2 entries")
+    for key in keys(last)
+        (count(x -> x>0, key) != 2) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+        (count(x -> x==1, key) < 1) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
     end
 
     return true
 end
 
 """
-    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
 
-Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
 """
-function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
     (length(w) != k) && error("w must be length k")
-    (length(true_first) != 3k+1) && error("first must have length 3k+1")
-    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
-    (length(true_others) != k*d*(d-1)/2) && error("third must include kd(d-1)/2 entries")
-    for key in keys(true_others)
-        (count(x -> x>0, key) != 2) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
-        (count(x -> x==1, key) < 1) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+    (length(first) != 3k+1) && error("first must have length 3k+1")
+    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+    (length(last) != k*d*(d-1)/2) && error("last must include kd(d-1)/2 entries")
+    for key in keys(last)
+        (count(x -> x>0, key) != 2) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+        (count(x -> x==1, key) < 1) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
     end
 
     return true
 end
 
 """
-    checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
 
-Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
 """
-function checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64})
-    (length(true_first) != 3k+1) && error("first must have length 3k+1")
-    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+function checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
+    (length(first) != 3k+1) && error("first must have length 3k+1")
+    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
 
     return true
 end
 
 """
-    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64})
 
-Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
 """
-function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64})
     (length(w) != k) && error("w must be length k")
-    (length(true_first) != 3k+1) && error("first must have length 3k+1")
-    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+    (length(first) != 3k+1) && error("first must have length 3k+1")
+    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
 
     return true
 end
 
 """
-    checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+    checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64})
 
-Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
 """
-function checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+function checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64})
     !isposdef(shared_cov) && error("shared_cov must be positive definite")
-    (length(true_first) != k+1) && error("first must have length k+1")
-    (size(true_diag) != (k,d-1)) && error("second must be k x d-1")
+    (length(first) != k+1) && error("first must have length k+1")
+    (size(second) != (k,d-1)) && error("second must be k x d-1")
 
     return true
 end
