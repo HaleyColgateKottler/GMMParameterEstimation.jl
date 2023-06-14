@@ -5,7 +5,7 @@ using LinearAlgebra
 using Combinatorics
 using JLD2
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle, equalMixCovarianceKnown_moments
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, selectSol, tensorPower, convert_indexing, mixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, cycle_for_weights, dimension_cycle, moments_for_cycle, equalMixCovarianceKnown_moments, checkInputs
 
 """
     makeCovarianceMatrix(d::Integer, diagonal::Bool)
@@ -157,7 +157,7 @@ end
     
 Use the given parameters to compute the exact moments necessary for parameter estimation with equal mixing coefficients and shared known covariances.
 
-Returns moments 0 to `k` for the first dimension, and moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+Returns moments 0 to `k` for the first dimension, and moments ``m\_{je\_1+e\_i}`` for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
 """
 function equalMixCovarianceKnown_moments(k::Integer, mean::Matrix{Float64}, shared_cov::Matrix{Float64})
     d = size(shared_cov)[1]
@@ -934,7 +934,7 @@ end
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-For the known mixing coefficient diagonal covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, and `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions..
+For the known mixing coefficient diagonal covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, and `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions.
 """
 function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64})
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
@@ -988,62 +988,13 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
 end
 
 """
-    estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64})
-
-Compute an estimate for the parameters of a `d`-dimensional Gaussian model from the moments.
-
-For the unknown mixing coefficient diagonal covariance matrix case, `first` should be a list of moments 0 through 3 for the first dimension, and `second` should be a matrix of moments 1 through 3 for the remaining dimensions.
-"""
-function estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64})
-    means = Array{Float64}(undef, (1,d))
-    covariances = [Diagonal{Float64}(undef, d)]
-    
-    means[1,1] = first[2]
-    covariances[1][1,1] = first[3] - first[2]^2
-    
-    for i in 1:d-1
-        means[1, i+1] = second[i, 1]
-        covariances[1][i+1, i+1] = second[i, 2] - second[i, 1]^2
-    end
-    return (means, covariances)
-end
-
-"""
-    estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64})
-
-Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
-
-For the unknown mixing coefficient dense covariance matrix case, `first` should be a list of moments 0 through 3 for the first dimension, `second` should be a matrix of moments 1 through 3 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
-"""
-function estimate_parameters(d::Integer, first::Vector{Float64}, second::Matrix{Float64}, third::Dict{Vector{Int64}, Float64})
-    @var vs[1:k, 1:d, 1:d]
-    means = Array{Float64}(undef, (1,d))
-    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (1, d, d))
-    
-    means[1, 1] = first[2]
-    covariances[1, 1, 1] = first[3] - first[2]^2
-    
-    for i in 1:d-1
-        means[1, i+1] = second[i, 1]
-        covariances[1, i+1, i+1] = second[i, 2] - second[i, 1]^2
-    end
-    for (key, moment) in third
-        indexing = convert_indexing(key, d)
-        covar = moment/3 - means[1, indexing[1]] * means[1,indexing[2]]
-        covariances[1, indexing[1], indexing[2]] = covar
-        covariances[1, indexing[2], indexing[1]] = covar        
-    end
-    return (means, covariances)
-end
-
-"""
-    estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms::Vector{Float64}, second_moms::Matrix{Float64})
+    estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64})
 
 Compute an estimate for the means of a Gaussian `k`-mixture model with equal mixing coefficients and known shared covariances from the moments.
 
-The shared covariance matrix `shared_cov` will determine the dimension. Then `first_moms` should be a list of moments 0 through k for the first dimension, `second_moms` should be a matrix of moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
+The shared covariance matrix `shared_cov` will determine the dimension. Then `first` should be a list of moments 0 through k for the first dimension, `second` should be a matrix of moments m_{je_1+e_i} for j in 0 to `k`-1 and i in 2 to d as a matrix where d is the dimension, i varies across rows, and j varies down columns.
 """
-function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms::Vector{Float64}, second_moms::Matrix{Float64})
+function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64})
     d = size(shared_cov)[1]
     
     @var ms[1:k, 1:d]    
@@ -1052,7 +1003,7 @@ function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms
     first_system = build1DSystem(k, k+1, ones(k)/k)[1][2:end]
     first_system = evaluate(first_system, s => repeat([shared_cov[1,1]],k))
     
-    sol1 = solve(first_system-first_moms, show_progress = false)
+    sol1 = solve(first_system-first, show_progress = false)
     real_sols = real_solutions(sol1)
     
     size(real_sols)[1] == 0 && (return (false, nothing))
@@ -1105,7 +1056,7 @@ function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first_moms
         target_vector = Vector{Float64}()
         for j in 1:k
             constant = system[j](ms=>zeros(size(ms)))
-            sample_moment = second_moms[j, i]
+            sample_moment = second[j, i]
             push!(target_vector, sample_moment - constant)
         end
         
@@ -1269,5 +1220,78 @@ function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, 
         pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
     end
     return pass, (weights, means, covariances)
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+
+Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+"""
+function checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+    (length(true_first) != 3k+1) && error("first must have length 3k+1")
+    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+    (length(true_others) != k*d*(d-1)/2) && error("third must include kd(d-1)/2 entries")
+    for key in keys(true_others)
+        (count(x -> x>0, key) != 2) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+        (count(x -> x==1, key) < 1) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+    end
+
+    return true
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+
+Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+"""
+function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64}, true_others::Dict{Vector{Int64}, Float64})
+    (length(w) != k) && error("w must be length k")
+    (length(true_first) != 3k+1) && error("first must have length 3k+1")
+    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+    (length(true_others) != k*d*(d-1)/2) && error("third must include kd(d-1)/2 entries")
+    for key in keys(true_others)
+        (count(x -> x>0, key) != 2) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+        (count(x -> x==1, key) < 1) && error("moment keys in third should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+    end
+
+    return true
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+
+Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+"""
+function checkInputs(d::Integer, k::Integer, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+    (length(true_first) != 3k+1) && error("first must have length 3k+1")
+    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+
+    return true
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+
+Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+"""
+function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+    (length(w) != k) && error("w must be length k")
+    (length(true_first) != 3k+1) && error("first must have length 3k+1")
+    (size(true_diag) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+
+    return true
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+
+Returns `true` if the inputs are the right format for `estimate_parameters` and `false` otherwise.
+"""
+function checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, true_first::Vector{Float64}, true_diag::Matrix{Float64})
+    !isposdef(shared_cov) && error("shared_cov must be positive definite")
+    (length(true_first) != k+1) && error("first must have length k+1")
+    (size(true_diag) != (k,d-1)) && error("second must be k x d-1")
+
+    return true
 end
 end

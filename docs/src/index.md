@@ -5,7 +5,7 @@ GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian
 ```@contents
 ```
 
-## Example
+## Examples
 The following code snippet will use the given moments to return an estimate of the parameters using the method of moments with unknown mixing coefficients and dense covariance matrices.
 
 ```julia
@@ -40,6 +40,28 @@ is_solution_found, (mixing_coefficients, means, covariances) = estimate_paramete
 2. A tuple of the parameters `(mixing_coefficients, means, covariances)` 
 ``\\~\\``
  
+
+The following code snippet will generate the denoised moments necessary for parameter recovery from the given parameters.
+
+```julia
+using GMMParameterEstimation
+
+d=3
+k=2
+diagonal = false
+
+means = [0.83 0.24 -1.53; 0.22 0.04 -0.71]
+covariances = [0.8828527552401668 0.27735188899130847 1.6710529671002674; 2.257873093006253 -1.644707016523332 -0.533030022431624;;; 0.27735188899130847 1.2623673813995742 3.5270452552353238; -1.644707016523332 2.577324062116896 -0.5049891831614162;;; 1.6710529671002674 3.5270452552353238 16.696895556824817; -0.533030022431624 -0.5049891831614162 1.7733508773418585]
+mixing_coefficients = [.3, .7]
+
+if diagonal
+    true_first, true_diag = diagonalPerfectMoments(d, k, w, true_means, true_covariances)
+else
+    true_first, true_diag, true_others = densePerfectMoments(d, k, w, true_means, true_covariances)
+end
+```
+
+``\\~\\``
  
 ## Parameter estimation
 
@@ -102,6 +124,8 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
 sampleMoments
 diagonalPerfectMoments
 densePerfectMoments
+moments_for_cycle
+equalMixCovarianceKnown_moments
 ```
 These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for dense covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
 
