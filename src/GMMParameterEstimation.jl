@@ -5,7 +5,7 @@ using Distributions
 using LinearAlgebra
 using Combinatorics
 using JLD2
-include("momentGeneration.jl") # fix check this thing
+include("momentGeneration.jl")
 
 export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, dimension_cycle, moments_for_cycle, equalMixCovarianceKnown_moments, checkInputs
 
@@ -384,8 +384,8 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     (system, polynomial) = build1DSystem(k, 3*k)
  
     if k in [2,3,4]
-        temp_moments = load("./sys1_k" * string(k) * ".jld2", "moments") # FIX load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
-        R1_sols = load("./sys1_k" * string(k) * ".jld2", "sols") # FIX load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
+        temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
+        R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
     else
         target1 = target2
         
