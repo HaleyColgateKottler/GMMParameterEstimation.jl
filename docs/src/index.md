@@ -93,7 +93,13 @@ One potential difficulty in estimating the mixing coefficients is the resulting 
 dimension_cycle
 ```
 
+## Checking Input Formatting
 
+To check you are formatting your inputs correctly, we have included
+
+```@docs
+checkInputs
+```
 
 ## Generate and sample from Gaussian Mixture Models
 
@@ -170,6 +176,7 @@ The final step in our method of moments parameter recovery for non-diagonal cova
 Note: the polynomial is still linear when 3 ``a_i=1`` and the rest of the ``a_i`` are 0 but this complicates generating the system so we did not include those.
  
 Referring back to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
+
 
 ## Index
 
