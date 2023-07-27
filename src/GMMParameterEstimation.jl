@@ -7,7 +7,7 @@ using Combinatorics
 using JLD2
 include("momentGeneration.jl")
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, dimension_cycle, moments_for_cycle, equalMixCovarianceKnown_moments, checkInputs
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, dimension_cycle, cycle_moments, equalMixCovarianceKnown_moments, checkInputs
 
 """
     build1DSystem(k::Integer, m::Integer)
@@ -920,53 +920,56 @@ Cycle over the dimensions of `cycle_moments` to find candidate mixing coefficien
 
 This will take longer than estimate\\_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.  `cycle_moments` should be an array of the 0 through 3`k` moments for each dimension. If no `indexes` is given, assumes diagonal covariance matrices and a method should not be specified.
 """
-function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64})    
+function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64})
     first_dim = 1
-    stop = false
     first_pass = false
-    while (first_dim <= d) & (stop == false)
+    pass = false
+    while (first_dim <= d) & (pass == false)
         first_moms = cycle_moments[first_dim, 1:end]
-        
-        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
+
+        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((0,2*k+1)))
         if first_pass == true
             pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2])
-        end
-        
-        if pass == true
-            stop = true
         end
         first_dim += 1
     end
     if first_pass != true
         pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
     end
-    return pass, (weights, means, covariances)
+    if first_dim == 2
+        first_passing = true
+    else
+        first_passing = false
+    end
+    return pass, first_passing, (weights, means, covariances)
 end
 
 function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, indexes::Dict{Vector{Int64}, Float64}; method = "recursive")
     first_dim = 1
-    stop = false
     first_pass = false
-    while (first_dim <= d) & (stop == false)
+    pass = false
+    while (first_dim <= d) & (pass == false)
         first_moms = cycle_moments[first_dim, 1:end]
-        
-        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
+
+        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((0,2*k+1)))
         if first_pass == true
-            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2], indexes; method = "recursive")
+            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2], indexes; method = method)
         end
-        
-        if pass == true
-            stop = true
-        end
+
         first_dim += 1
     end
     if first_pass != true
         pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
     end
-    return pass, (weights, means, covariances)
+    if first_dim == 2
+        first_passing = true
+    else
+        first_passing = false
+    end
+    return pass, first_passing, (weights, means, covariances)
 end
 
-""" # fix doc strings if this works
+"""
     checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
 
 Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
