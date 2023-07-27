@@ -63,7 +63,7 @@ function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, co
     r = rand(m, numb)
     return r
 end
-empty Data
+
 """
     getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, covariances::Array{Float64, 3})
 

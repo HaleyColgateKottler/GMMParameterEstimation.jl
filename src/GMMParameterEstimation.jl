@@ -183,7 +183,6 @@ function tensorMixedMomentSystem(d, k, mixing, ms, vs)
     return indexed_system
 end
 
-# fix docs and export
 """
     tensorOffDiagonalSolve(d, k, mixing_coefficients, means, covariances, last)
 
