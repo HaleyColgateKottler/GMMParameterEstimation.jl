@@ -149,25 +149,6 @@ This uses the usual recursive formula for moments of a univariate Gaussian in te
  ``\\~\\``
 
 ```@docs
-selectSol
-```
-Statistically significant means has positive variances here.  This is used to select which solution from the parameter homotopy will be used.
-
- ``\\~\\``
-
-```@docs
-tensorPower
-```
-
-```@docs
-convert_indexing
-```
-To our knowledge, the only closed form formula for the mixed dimensional moments of a multivariate Gaussian is that provided by Jo``\~{a}``o M. Pereira, Joe Kileel, and Tamara G. Kolda in [Tensor Moments of Gaussian Mixture Models: Theory and Applications](https://arxiv.org/abs/2202.06930).  However, the tensor moments are indexed in a different way than the multivariate moment notation we used.  Let  ``m_{a_1\cdots a_n}`` be a d-th order multivariate moment and let ``M_{i_1\cdots i_d}^{(d)}`` be an entry of the d-th order tensor moment.  Then ``m_{a_1\cdots a_n}=M_{i_1\cdots i_d}^{(d)}`` where 
-``a_j=|\{i_k=j\}|``.  Note that due to symmetry, the indexing of the tensor moment is non-unique.  For example, ``m_{102} = M_{133}^{(3)}=M_{331}^{(3)}=M_{313}^{(3)}=m_{102}``.
-
- ``\\~\\``
-
-```@docs
 mixedMomentSystem
 ```
 
@@ -175,7 +156,7 @@ The final step in our method of moments parameter recovery for non-diagonal cova
 
 Note: the polynomial is still linear when 3 ``a_i=1`` and the rest of the ``a_i`` are 0 but this complicates generating the system so we did not include those.
  
-Referring back to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
+Referring to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
 
 
 ## Index
