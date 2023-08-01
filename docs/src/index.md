@@ -1,5 +1,7 @@
 # GMMParameterEstimation.jl Documentation
 
+Authors: Haley Colgate Kottler, Julia Lindberg, Jose Israel Rodriguez
+
 GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian k-mixture models using the method of moments. It can potentially find the parameters for arbitrary `k` with known or unknown mixing coefficients.  However, since the number of possible solutions to the polynomial system that determines the first dimension parameters and mixing coefficients for ``k>4`` is unknown, for the unknown mixing coefficient case with ``k>4`` failure of the package to find the parameters might occur if an insufficient number of solutions to the system were found
 
 ```@contents
@@ -132,7 +134,7 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
 sampleMoments
 diagonalPerfectMoments
 densePerfectMoments
-moments_for_cycle
+cycle_moments
 equalMixCovarianceKnown_moments
 ```
 These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for dense covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
@@ -148,16 +150,18 @@ This uses the usual recursive formula for moments of a univariate Gaussian in te
 
  ``\\~\\``
 
-```@docs
-mixedMomentSystem
-```
+The final step in our method of moments parameter recovery for non-diagonal covariance matrices is building and solving a system of ``N:=\frac{k}{2}(d^2-d)`` linear equations in the same number of unknowns to fill in the off diagonal.
 
-The final step in our method of moments parameter recovery for non-diagonal covariance matrices is building and solving a system of ``N:=\frac{k}{2}(d^2-d)`` linear equations in the same number of unknowns to fill in the off diagonal.  The polynomial for ``m_{a_1\cdots a_n}`` is linear if all but two ``a_i=0`` and at least one ``a_1=1``.  There are ``n^2-n`` of these for each order ``\geq2``, so we need these equations for up to ``\lceil \frac{k}{2}\rceil``-th order.  These moments should be provided to the solver using minimal possible degree, and if only half the possible moments for a degree are necessary (k/2 is even) provide the moments with higher power in earlier dimension, e.g. use [2,1,0] instead of [1,2,0].
+We present two options for moment selection.  First, Lindberg et al., demonstrated that for fixed ``i,j\in[d]``, ``i\neq j``, the set of moment equations ``\{m_{te_i+e_j}\}_{t=1}^k`` are linear in ``\sigma_{\ell i j}`` for ``\ell\in[k]`` and leads to a linear system that generically has a unique solution.  Due to the symmetry of covariance matrices (``\sigma_{\ell i j}=\sigma_{\ell j i}``) we add the restriction that ``i<j``. This is implemented and can be selected by setting `style="k"`.
 
-Note: the polynomial is still linear when 3 ``a_i=1`` and the rest of the ``a_i`` are 0 but this complicates generating the system so we did not include those.
+Second, further relying on the symmetry of the covariance matrices and their corresponding polynomials, we present a lower order system given by ``\begin{cases} \{m_{te_i+e_j}, m_{e_i+te_j}\}_{t=1}^{\frac{k}{2}}\cup\{m_{te_i+e_j}\}_{t=1}^{\frac{k}{2}+1} & \text{ if k is even}\\ \{m_{te_i+e_j}, m_{e_i+te_j}\}_{t=1}^{\frac{k+1}{2}} & \text{ if k is odd}\end{cases}.``
+
+We again assume ``i,j\in[d]`` with ``i<j``. This is the default setting and can be selected by setting `style="low"`.
  
-Referring to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments.
+ We also present two methods for generating the moment polynomials. First, we use tensor moments.
+Referring to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments. This can be accessed by selecting `method="tensor"` and uses the lower order system due to difficulties with higher order tensor moments.
 
+Second, we use a recursive method, which is the default because it is faster, and can be selected via `method="recursive"`.
 
 ## Index
 
