@@ -420,31 +420,14 @@ function equalMixCovarianceKnown_moments(k::Integer, sample::Matrix{Float64})
     end
 
     second_moms = zeros(k,d-1)
-    for j in 1:k
-        second_moms[1,j] = mean(sample[j,i] for i in 1:sample_size)
+    for j in 2:d
+        second_moms[1,j-1] = mean(sample[j,i] for i in 1:sample_size)
     end
 
-    for n in 2:k #order of tensor moment
-        for i in 1:k
-            for j in 0:floor((n)/2)
-                for l in 1:d-1
-                    key = Int64.(zeros(d))
-                    key[1] = n-1
-                    key[l+1] = 1
-
-                    sample_moment = 0
-                    for j in 1:sample_size
-                        temp_moment = 1
-                        for i in 1:d
-                            temp_moment *= sample[i, j]^(key[i])
-                        end
-                        sample_moment += temp_moment
-                    end
-                    sample_moment = sample_moment/sample_size
-
-                    second_moms[n,l] = sample_moment
-                end
-            end
+    for n in 1:(k-1)
+        for m in 2:d
+            sample_moment = mean(sample[1,j]^n*sample[m,j] for j in 1:sample_size)
+            second_moms[n+1,m-1] = sample_moment
         end
     end
 
