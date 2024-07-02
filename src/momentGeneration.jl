@@ -78,13 +78,13 @@ function getSample(numb::Integer, w::Vector{Float64}, means::Matrix{Float64}, co
 end
 
 """
-    densePerfectMoments(d, k, w, true_means, true_covariances; method = "low")
+    generalPerfectMoments(d, k, w, true_means, true_covariances; method = "low")
 
 Use the given parameters to compute the exact moments necessary for parameter estimation with dense covariance matrices.
 
 Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system.
 """
-function densePerfectMoments(d, k, w, true_means, true_covariances; method = "low")
+function generalPerfectMoments(d, k, w, true_means, true_covariances; method = "low")
     @var s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k+1)
     # Compute the moments for step 1
@@ -280,127 +280,6 @@ function equalMixCovarianceKnown_moments(k::Integer, mean::Matrix{Float64}, shar
 
     # solve the systems and put them into ms
     return (first_moms, second_moms)
-end
-
-"""
-    cycle_moments(d, k, w, means, covars, diagonal)
-
-Calculate 0 through 3`k`+1 denoised moments for every dimension.
-
-Used as input for cycling over the dimensions to find candidate mixing coefficients.
-"""
-function cycle_moments(d, k, w, means, covars, diagonal)
-    moments = Array{Float64}(undef, (d, 3*k+1))
-    @var s[1:k] y[1:k] a[1:k]
-    (system, polynomial) = build1DSystem(k, 3*k+1)
-
-    if diagonal
-        for i in 1:d
-            true_params = append!(copy(w), [covars[j][i,i] for j in 1:k], [means[j,i] for j in 1:k])
-            all_moments = [p([a; s; y] => true_params) for p in system]
-            if typeof(all_moments[1]) != Float64
-                moments[i, 1:end] = to_number.(expand.(all_moments))
-            else
-                moments[i, 1:end] = all_moments
-            end
-        end
-    else
-        for i in 1:d
-            true_params = append!(copy(w), [covars[j,i,i] for j in 1:k], [means[j,i] for j in 1:k])
-            all_moments = [p([a; s; y] => true_params) for p in system]
-            if typeof(all_moments[1]) != Float64
-                moments[i, 1:end] = to_number.(expand.(all_moments))
-            else
-                moments[i, 1:end] = all_moments
-            end
-        end
-    end
-    return moments
-end
-
-"""
-    cycle_moments(k, sample, diagonal, style)
-
-Calculate 0 through 3`k`+1 sample moments for every dimension.
-
-Used as input for cycling over the dimensions to find candidate mixing coefficients.
-"""
-function cycle_moments(k, sample, diagonal, style)
-    (d, sample_size) = size(sample)
-    single_dim_moments = Array{Float64}(undef, (d, 3*k+1))
-
-    for i in 1:d
-        for j in 0:(3*k)
-            single_dim_moments[i,j+1] = mean(sample[i,n]^j for n in 1:sample_size)
-        end
-    end
-
-    if diagonal
-        return single_dim_moments
-    else
-        indexes = Dict{Vector{Int64}, Float64}()
-
-        if style == "low"
-            for i in 1:(d-1)
-                for j in (i+1):d
-                    key = repeat([0], d)
-                    key[i] = 1
-                    key[j] = 1
-
-                    mom = mean(sample[i,n]*sample[j,n] for n in 1:sample_size)
-
-                    indexes[key] = mom
-
-                    second_lim = (k%2 == 0) ? Int64(k/2) : Int64(floor(k/2))+1
-
-                    for t in 2:second_lim
-                        key = repeat([0], d)
-                        key[i] = t
-                        key[j] = 1
-
-                        mom = mean((sample[i,n]^t)*sample[j,n] for n in 1:sample_size)
-
-                        indexes[key] = mom
-
-                        key = repeat([0], d)
-                        key[j] = t
-                        key[i] = 1
-
-                        mom = mean((sample[j,n]^t)*sample[i,n] for n in 1:sample_size)
-
-                        indexes[key] = mom
-                    end
-
-                    if k % 2 == 0
-                        key = repeat([0], d)
-                        key[i] = second_lim + 1
-                        key[j] = 1
-
-                        mom = mean((sample[i,n]^(second_lim + 1))*sample[j,n] for n in 1:sample_size)
-
-                        indexes[key] = mom
-                    end
-                end
-            end
-        elseif style == "k"
-            for i in 1:(d-1)
-                for j in (i+1):d
-                    for t in 1:k
-                        key = repeat([0], d)
-                        key[i] = t
-                        key[j] = 1
-
-                        mom = mean((sample[i,n]^t)*sample[j,n] for n in 1:sample_size)
-
-                        indexes[key] = mom
-                    end
-                end
-            end
-        else
-            println("style must be low or k")
-        end
-        return (single_dim_moments, indexes)
-    end
 end
 
 """

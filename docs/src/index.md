@@ -17,7 +17,7 @@ k = 2
 first_moments = [1.0, -0.67, 2.44, -4.34, 17.4, -46.16, 201.67]
 diagonal_moments = [-0.28 2.11 -2.46 15.29 -31.77; 0.4 4.25 3.88 54.75 59.10]
 off_diag_system = Dict{Vector{Int64}, Float64}([2, 1, 0] => 1.8506, [1, 0, 1] => -0.329, [2, 0, 1] => 0.0291, [0, 2, 1] => 1.5869, [1, 1, 0] => -1.374, [0, 1, 1] => -0.333)
-is_solution_found, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moments, diagonal_moments, off_diag_system)
+error_check, (mixing_coefficients, means, covariances) = estimate_parameters(d, k, first_moments, diagonal_moments, off_diag_system)
 ```
 
 ### Inputs:
@@ -37,13 +37,13 @@ is_solution_found, (mixing_coefficients, means, covariances) = estimate_paramete
 
 ### Outputs:
 
-1. An indicator of success in finding the parameters `is_solution_found`
+1. An indicator of success in finding the parameters `error_check`, 0 means no error, 1 means an error in the first dimension system with either finding real solutions or non-negative mixing coefficients or positive covariance, 2 means an error in finding real solutions or positive covariances in a higher dimension, and 3 means the resulting covariance matrices weren't positive definite.
 
 2. A tuple of the parameters `(mixing_coefficients, means, covariances)` 
 ``\\~\\``
  
 
-The following code snippet will generate the denoised moments necessary for parameter recovery from the given parameters.
+The following code snippet will generate the exact moments necessary for parameter recovery from the given parameters.
 
 ```julia
 using GMMParameterEstimation
@@ -89,19 +89,7 @@ On a standard laptop we have successfully recovered parameters with unknown mixi
 
  ``\\~\\``
 
-One potential difficulty in estimating the mixing coefficients is the resulting dependence on higher moments in the first dimension.  In sample data, if another dimension leads to more accurate moments, using that dimension to recover mixing coefficients and then proceeding can address this difficulty.  The following function was designed for this purpose.  Note that it can either be provided with an d x n sample, or a d x 3k+1 array of moments 0 through 3k for each dimension, augmented by a dictionary of the off-diagonal moments if seeking non-diagonal covariance matrices.
-
-```@docs
-dimension_cycle
-```
-
-## Checking Input Formatting
-
-To check you are formatting your inputs correctly, we have included
-
-```@docs
-checkInputs
-```
+One potential difficulty in estimating the mixing coefficients is the resulting dependence on higher moments in the first dimension.  In sample data, if another dimension leads to more accurate moments, using that dimension to recover mixing coefficients and then proceeding can address this difficulty.
 
 ## Generate and sample from Gaussian Mixture Models
 
@@ -134,7 +122,6 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
 sampleMoments
 diagonalPerfectMoments
 densePerfectMoments
-cycle_moments
 equalMixCovarianceKnown_moments
 ```
 These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for dense covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
