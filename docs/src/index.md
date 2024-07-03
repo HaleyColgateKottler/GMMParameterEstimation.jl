@@ -8,7 +8,7 @@ GMMParameterEstimation.jl is a package for estimating the parameters of Gaussian
 ```
 
 ## Examples
-The following code snippet will use the given moments to return an estimate of the parameters using the method of moments with unknown mixing coefficients and dense covariance matrices.
+The following code snippet will use the given moments to return an estimate of the parameters using the method of moments with unknown mixing coefficients and general covariance matrices.
 
 ```julia
 using GMMParameterEstimation
@@ -59,7 +59,7 @@ mixing_coefficients = [.3, .7]
 if diagonal
     true_first, true_diag = diagonalPerfectMoments(d, k, w, true_means, true_covariances)
 else
-    true_first, true_diag, true_others = densePerfectMoments(d, k, w, true_means, true_covariances)
+    true_first, true_diag, true_others = generalPerfectMoments(d, k, w, true_means, true_covariances)
 end
 ```
 
@@ -85,7 +85,7 @@ and the empirical moments as
 ``\overline{m}_{i_1,\dots,i_n} = \frac{1}{N}\sum_{j=1}^Ny_{j_1}^{i_1}\cdots y_{j_n}^{i_n}``.  
 And again, by setting the polynomials equal to the empirical moments, we can then solve the system of polynomials to recover the parameters.  However, choosing which moments becomes more complicated.  If we know the mixing coefficients, we can use the first ``2k+1`` moments of each dimension to find the means and the diagonal entries of the covariance matrices.  If we do not know the mixing coefficients, we need the first ``3k`` moments of the first dimension to also find the mixing coefficients.  See [mixedMomentSystem](https://haleycolgatekottler.github.io/GMMParameterEstimation.jl/#GMMParameterEstimation.mixedMomentSystem) for which moments to include to fill in the off-diagonals of the covariance matrices if needed.
 
-On a standard laptop we have successfully recovered parameters with unknown mixing coefficients for ``k\leq 4`` and known mixing coefficients for ``k\leq 5``, with ``d\leq 10^5`` for the diagonal covariance case and ``d\leq 50`` for the dense covariance case.  Higher `k` values or higher `d` values have led to issues with running out of RAM.
+On a standard laptop we have successfully recovered parameters with unknown mixing coefficients for ``k\leq 4`` and known mixing coefficients for ``k\leq 5``, with ``d\leq 10^5`` for the diagonal covariance case and ``d\leq 50`` for the general covariance case.  Higher `k` values or higher `d` values have led to issues with running out of RAM.
 
  ``\\~\\``
 
@@ -121,10 +121,10 @@ This relies on the [Distributions](https://juliastats.org/Distributions.jl/stabl
 ```@docs
 sampleMoments
 diagonalPerfectMoments
-densePerfectMoments
+generalPerfectMoments
 equalMixCovarianceKnown_moments
 ```
-These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for dense covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
+These expect parameters to be given with weights in a 1D vector, means as a k x d array, and covariances as a k x d x d array for general covariance matrices or as a list of diagonal matrices for diagonal covariance matrices.
 
  ``\\~\\``
 
@@ -149,6 +149,13 @@ We again assume ``i,j\in[d]`` with ``i<j``. This is the default setting and can 
 Referring to [Pereira et al.](https://arxiv.org/abs/2202.06930) for a closed form method of generating the necessary moment polynomials, we generate the linear system using the already computed mixing coefficients, means, and diagonals of the covariances, and return it as a dictionary of index=>polynomial pairs that can then be matched with the corresponding moments. This can be accessed by selecting `method="tensor"` and uses the lower order system due to difficulties with higher order tensor moments.
 
 Second, we use a recursive method, which is the default because it is faster, and can be selected via `method="recursive"`.
+
+### Support Functions
+
+```@autodocs
+Modules = [GMMParameterEstimation]
+Order = [:function, :type]
+```
 
 ## Index
 

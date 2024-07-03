@@ -5,9 +5,10 @@ using Distributions
 using LinearAlgebra
 using Combinatorics
 using JLD2
+using GMMParameterEstimation
 include("momentGeneration.jl")
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, equalMixCovarianceKnown_moments, estimate_parameters_weights_known
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, generalPerfectMoments, diagonalPerfectMoments, equalMixCovarianceKnown_moments, estimate_parameters_weights_known
 
 """
     checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
@@ -588,7 +589,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
         for (i, x) in enumerate(mixing_coefficients)
             perm[i] = findfirst(y -> y == x, higher_dim_sols[2][1])
         end
-        means[1:end, 2:end] = higher_dim_sols[2][2][1:end, perm]
+        means[1:end, 2:end] = higher_dim_sols[2][2][perm, 1:end]
         for i in 1:k
             for j in 2:d
                 covariances[i][j,j] = higher_dim_sols[2][3][perm[i]][j-1,j-1]
@@ -604,7 +605,7 @@ end
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-For the known mixing coefficient dense covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
+For the known mixing coefficient general covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
 """
 function estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Float64}, first::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
@@ -640,7 +641,7 @@ function estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Floa
     end
 
     for i in 1:k
-        if !isposdef(covariances[i, 1:end, 1:end])
+        if !isposdef(convert(Matrix{Float64}, covariances[i, 1:end, 1:end]))
             return(3, (nothing,nothing,nothing))
         end
     end
@@ -653,7 +654,7 @@ end
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-For the unknown mixing coefficient dense covariance matrix case, `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
+For the unknown mixing coefficient general covariance matrix case, `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
 """
 function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
     checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
@@ -747,7 +748,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     higher_dim_sols = estimate_parameters_weights_known(d, k, mixing_coefficients, vcat(transpose(first[2:2*k+2]), second), last; method = method)
 
     for i in 1:k
-        if !isposdef(higher_dim_sols[2][3][i, 1:end, 1:end])
+        if !isposdef(convert(Matrix{Float64}, higher_dim_sols[2][3][i, 1:end, 1:end]))
             return(3, (nothing,nothing,nothing))
         end
     end

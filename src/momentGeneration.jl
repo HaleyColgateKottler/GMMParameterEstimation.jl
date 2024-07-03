@@ -31,7 +31,7 @@ end
 
 Generate means and covariances for `k` Gaussians with dimension `d`.
 
-`diagonal` should be true for spherical case, and false for dense covariance matrices.
+`diagonal` should be true for spherical case, and false for general covariance matrices.
 """
 function generateGaussians(d::Integer, k::Integer, diagonal::Bool)
     w::Vector{Float64} = abs.(randn(k))
@@ -80,7 +80,7 @@ end
 """
     generalPerfectMoments(d, k, w, true_means, true_covariances; method = "low")
 
-Use the given parameters to compute the exact moments necessary for parameter estimation with dense covariance matrices.
+Use the given parameters to compute the exact moments necessary for parameter estimation with general covariance matrices.
 
 Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system.
 """
