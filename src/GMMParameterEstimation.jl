@@ -583,7 +583,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
 
     higher_dim_sols = estimate_parameters_weights_known(d-1, k, mixing_coefficients, second)
     if higher_dim_sols[1] > 0
-        return (higher_dim_sols[1], (nothing, nothing, nothing))
+        return (higher_dim_sols)
     else
         perm = Vector{Int}(undef, k)
         for (i, x) in enumerate(mixing_coefficients)
@@ -746,10 +746,11 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     best_sol = []
 
     higher_dim_sols = estimate_parameters_weights_known(d, k, mixing_coefficients, vcat(transpose(first[2:2*k+2]), second), last; method = method)
-
-    for i in 1:k
-        if !isposdef(convert(Matrix{Float64}, higher_dim_sols[2][3][i, 1:end, 1:end]))
-            return(3, (nothing,nothing,nothing))
+    if higher_dim_sols[1] == 0
+        for i in 1:k
+            if !isposdef(convert(Matrix{Float64}, higher_dim_sols[2][3][i, 1:end, 1:end]))
+                return(3, (nothing,nothing,nothing))
+            end
         end
     end
 
