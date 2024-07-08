@@ -5,7 +5,6 @@ using Distributions
 using LinearAlgebra
 using Combinatorics
 using JLD2
-using GMMParameterEstimation
 include("momentGeneration.jl")
 
 export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, generalPerfectMoments, diagonalPerfectMoments, equalMixCovarianceKnown_moments, estimate_parameters_weights_known
@@ -641,8 +640,15 @@ function estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Floa
     end
 
     for i in 1:k
-        if !isposdef(convert(Matrix{Float64}, covariances[i, 1:end, 1:end]))
-            return(3, (nothing,nothing,nothing))
+        cov_mat = convert(Matrix{Float64}, covariances[i, 1:end, 1:end])
+        if !isposdef(cov_mat)
+            vecs = eigvecs(cov_mat)
+            vals = eigvals(cov_mat)
+            for j in 1:length(vals)
+                vals[j] = max(vals[j], randn(1)[1]*10^(-10))
+            end
+            temp_cov = vecs*Diagonal(vals)*inv(vecs)
+            covariances[i, 1:end, 1:end] = .5 * (temp_cov + transpose(temp_cov))
         end
     end
 
@@ -746,13 +752,6 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     best_sol = []
 
     higher_dim_sols = estimate_parameters_weights_known(d, k, mixing_coefficients, vcat(transpose(first[2:2*k+2]), second), last; method = method)
-    if higher_dim_sols[1] == 0
-        for i in 1:k
-            if !isposdef(convert(Matrix{Float64}, higher_dim_sols[2][3][i, 1:end, 1:end]))
-                return(3, (nothing,nothing,nothing))
-            end
-        end
-    end
 
     return(higher_dim_sols)
 end
