@@ -314,13 +314,13 @@ function equalMixCovarianceKnown_moments(k::Integer, sample::Matrix{Float64})
 end
 
 """
-    sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
+    sampleMoments(sample::Matrix{Float64}, k; diagonal = false, method = "low")
 
 Use the sample to compute the moments necessary for parameter estimation using method of moments with general covariance matrices and mixing coefficients.
 
 Returns moments 0 to 3k for the first dimension, moments 1 through 2k+1 for the other dimensions as a matrix, and a dictionary with indices and moments for the off-diagonal system if `diagonal` is false.
 """
-function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
+function sampleMoments(sample::Matrix{Float64}, k; diagonal = false, method = "low")
     (d, sample_size) = size(sample)
     first_moms = Vector{Float64}(undef, 3*k+1)
     first_moms[1] = 1.0
@@ -333,7 +333,7 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
     end
     if diagonal
         return (first_moms, diagonal_moms)
-    else
+    elseif method == "low"
         indexes = Dict{Vector{Int64}, Float64}()
 
         target = k*(d^2-d)/2
@@ -418,6 +418,28 @@ function sampleMoments(sample::Matrix{Float64}, k; diagonal = false)
                 end
             end
         end
-        return (first_moms, diagonal_moms, indexes)
+    else
+        # m_{te_i+e_j} for t=1,...,k with i < j and i,j in [d]
+        indexes = Dict{Vector{Int64}, Float64}()
+        for j in 2:d
+            for i in 1:(j-1)
+                for t in 1:k
+                    temp = Int64.(zeros(d))
+                    temp[i] = t
+                    temp[j] = 1
+                    sample_moment = 0
+                    for j in 1:sample_size
+                        temp_moment = 1
+                        for i in 1:d
+                            temp_moment *= sample[i, j]^(temp[i])
+                        end
+                        sample_moment += temp_moment
+                    end
+                    sample_moment = sample_moment/sample_size
+                    indexes[temp] = sample_moment
+                end
+            end
+        end
     end
+    return (first_moms, diagonal_moms, indexes)
 end
