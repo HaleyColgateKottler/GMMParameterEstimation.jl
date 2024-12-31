@@ -3,22 +3,22 @@ uuid = "7a1c707a-4b3e-4a1f-9208-da91076bfd6f"
 authors = ["Haley Colgate Kottler", "Julia Lindberg", "Jose Israel Rodriguez"]
 version = "0.8.1"
 
+[deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
 [compat]
-julia = "1.7"
-HomotopyContinuation = "2.6.4"
-Distributions = "0.25.62"
 Combinatorics = "1.0.2"
-JLD2 = "~0.4.30"
+Distributions = "0.25.62"
+HomotopyContinuation = "2.6.4"
+JLD2 = "~0.4.30, 0.5"
+julia = "1.7"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
-
-[deps]
-HomotopyContinuation = "f213a82b-91d6-5c5d-acf7-10f1c761b327"
-Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
