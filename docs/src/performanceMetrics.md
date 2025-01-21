@@ -9,48 +9,21 @@ Since parameter sets are identified up to permutation, the following finds the p
 
 ```julia
 function computeError(w, true_means, true_covariances, mixing_coefficients, means, covariances, diagonal)
-    k = size(w)[1]
-    d = size(true_means)[2]
+    k, d = size(true_means)
 
-    basis = 1:k
+    weight_errors = [norm(mixing_coefficients[nthperm(1:k, i), :] - w) for i in 1:factorial(k)]
+    minimum_weight_error, best_permutation = findmin(weight_errors)
 
-    minimum_weight_error = (norm(w - mixing_coefficients), basis)
-    for i in 2:factorial(k)
-        permutation = nthperm(basis, i)
-        mixed_weights = Array{Float64}(undef, size(w))
-        for j in 1:k
-            mixed_weights[j, 1:end] = mixing_coefficients[permutation[j], 1:end]
-        end
-        weight_error = norm(mixed_weights - w)
-        (weight_error < minimum_weight_error[1]) && (minimum_weight_error = (weight_error, permutation))
-    end
-
-    permutation = minimum_weight_error[2]
-
-    final_mixing_coefficients = Array{Float64}(undef, size(mixing_coefficients))
-    final_means = Array{Float64}(undef, size(means))
+    final_mixing_coefficients = mixing_coefficients[nthperm(1:k, best_permutation), :]
+    final_means = means[nthperm(1:k, best_permutation), :]
 
     if diagonal
-        final_covariances = []
-        for j in 1:k
-            final_mixing_coefficients[j] = mixing_coefficients[permutation[j]]
-            final_means[j, 1:end] = means[permutation[j], 1:end]
-            push!(final_covariances, covariances[permutation[j]][1:end, 1:end])
-        end
+        final_covariances = [covariances[i][1:end, 1:end] for i in nthperm(1:k, best_permutation)]
     else
-    final_covariances = Array{Union{Float64}, 3}(undef, (k,d,d))
-        for j in 1:k
-            final_mixing_coefficients[j] = mixing_coefficients[permutation[j]]
-            final_means[j, 1:end] = means[permutation[j], 1:end]
-            final_covariances[j, 1:end, 1:end] = covariances[permutation[j], 1:end, 1:end]
-        end
+        final_covariances = covariances[nthperm(1:k, best_permutation), :, :]
     end
 
-    mixing_error = norm(final_mixing_coefficients - w)
-    means_error = norm(final_means - true_means)
-    covariance_error = norm(final_covariances - true_covariances)
-
-    return (mixing_error, means_error, covariance_error)
+    return (norm(final_mixing_coefficients - w), norm(final_means - true_means), norm(final_covariances - true_covariances))
 end
 ```
 

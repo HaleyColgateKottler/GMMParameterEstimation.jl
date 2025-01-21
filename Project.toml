@@ -8,7 +8,7 @@ julia = "1.7"
 HomotopyContinuation = "2.6.4"
 Distributions = "0.25.62"
 Combinatorics = "1.0.2"
-JLD2 = "~0.4.30"
+JLD2 = "0.4.30"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

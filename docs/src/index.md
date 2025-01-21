@@ -40,10 +40,27 @@ error_check, (mixing_coefficients, means, covariances) = estimate_parameters(d, 
 1. An indicator of success in finding the parameters `error_check`, 0 means no error, 1 means an error in the first dimension system with either finding real solutions or non-negative mixing coefficients or positive covariance, 2 means an error in finding real solutions or positive covariances in a higher dimension, and 3 means the resulting covariance matrices weren't positive definite.
 
 2. A tuple of the parameters `(mixing_coefficients, means, covariances)` 
-``\\~\\``
  
+``\\~\\``
+The following code snippet will generate the sample moments necessary for parameter recovery from a ``d\times n`` matrix of samples using the lower order system.
 
-The following code snippet will generate the exact moments necessary for parameter recovery from the given parameters.
+```julia
+using GMMParameterEstimation
+
+first_moms, diagonal_moms, offdiag_moms = sampleMoments(sample, k; diagonal = false, method = "low")
+```
+
+``\\~\\``
+The following code snippet will generate the sample moments necessary for parameter recovery from a ``d\times n`` matrix of samples using the Lindberg et al. system.
+
+```julia
+using GMMParameterEstimation
+
+first_moms, diagonal_moms, offdiag_moms = sampleMoments(sample, k; diagonal = false, method = "k")
+```
+
+``\\~\\``
+The following code snippet shows an example of generating the exact moments necessary for parameter recovery from the given parameters.
 
 ```julia
 using GMMParameterEstimation
@@ -70,6 +87,7 @@ end
 The main functionality of this package stems from 
 ```@docs
 estimate_parameters
+estimate_parameters_weights_known
 ```
 which computes the parameter recovery using Algorithm 1 from [Estimating Gaussian Mixtures Using Sparse Polynomial Moment Systems](https://arxiv.org/abs/2106.15675).  Note that the unknown mixing coefficient cases with ``k\in\{2,3,4\}`` load a set of generic moments and the corresponding solutions to the first 1-D polynomial system from `sys1_k2.jld2`, `sys1_k3.jld2`, or `sys1_k4.jld2` for a slight speedup.  If `k` is not specified, k=1 will be assumed, and the resulting polynomial system will be solved explicitly and directly.   
 
