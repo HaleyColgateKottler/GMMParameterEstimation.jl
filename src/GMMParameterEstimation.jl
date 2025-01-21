@@ -7,7 +7,72 @@ using Combinatorics
 using JLD2
 include("momentGeneration.jl")
 
-export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, densePerfectMoments, diagonalPerfectMoments, dimension_cycle, cycle_moments, equalMixCovarianceKnown_moments, checkInputs
+export makeCovarianceMatrix, generateGaussians, getSample, build1DSystem, tensorMixedMomentSystem, estimate_parameters, sampleMoments, generalPerfectMoments, diagonalPerfectMoments, equalMixCovarianceKnown_moments, estimate_parameters_weights_known
+
+"""
+    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+
+Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
+"""
+function checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+    !(method in ["recursive", "tensor"]) && error("method must be recursive or tensor")
+    (length(first) != 3k+1) && error("first must have length 3k+1")
+    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+    (length(last) != k*d*(d-1)/2) && error("last must include kd(d-1)/2 entries")
+    for key in keys(last)
+        (count(x -> x>0, key) != 2) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+        (count(x -> x==1, key) < 1) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+    end
+
+    return true
+end
+
+"""
+    checkInputsKnown(d::Integer, k::Integer, w::Vector{Float64}, first::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+"""
+function checkInputsKnown(d::Integer, k::Integer, w::Vector{Float64}, first::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+    (length(w) != k) && error("w must be length k")
+    (size(first) != (d,2k+1)) && error("first must be d x 2k+1")
+
+    (length(last) != k*d*(d-1)/2) && error("last must include kd(d-1)/2 entries")
+    for key in keys(last)
+        (count(x -> x>0, key) != 2) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+        (count(x -> x==1, key) < 1) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
+    end
+    return true
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
+"""
+function checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
+    (length(first) != 3k+1) && error("first must have length 3k+1")
+    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
+
+    return true
+end
+
+"""
+    checkInputsKnown(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
+"""
+function checkInputsKnown(d::Integer, k::Integer, w::Vector{Float64}, second::Matrix{Float64})
+    (length(w) != k) && error("w must be length k")
+    (size(second) != (d, 2k+1)) && error("moments must be d x 2k+1")
+
+    return true
+end
+
+"""
+    checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64}, method)
+"""
+function checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64}, method)
+    !(method in ["recursive", "tensor"]) && error("method must be recursive or tensor")
+    !isposdef(shared_cov) && error("shared_cov must be positive definite")
+    (length(first) != k) && error("first must have length k+1")
+    (size(second) != (k,d-1)) && error("second must be k x d-1")
+
+    return true
+end
 
 """
     build1DSystem(k::Integer, m::Integer)
@@ -50,7 +115,7 @@ Sort out a `k` mixture statistically significant solutions from `solution`, and 
 function selectSol(k::Integer, solution::Result, polynomial::Expression, moment::Number)
     @var s[1:k] y[1:k]
     stat_significant = [];
-    
+
     vars = append!(s,y)
     stat_significant = filter(r -> all(r[1:k] .> 0), real_solutions(solution))
     size(stat_significant)[1] == 0 && (return false)
@@ -113,7 +178,7 @@ function tensorMixedMomentSystem(d, k, mixing, ms, vs)
             end
         end
     end
-    
+
     indexes = Dict{String, Array}()
     for i in 2:Int64(ceil((k+1)/2)) + 1
         indexes[string(i)] = []
@@ -121,7 +186,7 @@ function tensorMixedMomentSystem(d, k, mixing, ms, vs)
 
     target = k*(d^2-d)/2
     for i in 1:d-1
-        for j in i+1:d 
+        for j in i+1:d
             n = 2
             temp = Int64.(zeros(d))
             temp[i] = 1
@@ -149,7 +214,7 @@ function tensorMixedMomentSystem(d, k, mixing, ms, vs)
             end
         end
     end
-    
+
     indexed_system = Dict{Vector{Int64}, Expression}()
     for n in 2:Int64(ceil((k+1)/2)) + 1
         for i in 1:k
@@ -267,7 +332,7 @@ function kOrder_offDiagonalSolve(d, k, mixing_coefficients, means, covariances, 
 end
 
 """
-    kOrder_offDiagonalSolve(d, k, mixing_coefficients, means, covariances, last)
+    lowOrder_offDiagonalSolve(d, k, mixing_coefficients, means, covariances, last)
 
 Use a recursive system to build and solve a system for the off-diagonal covariance entries using minimal order moments ``m_{te_i+e_j}`` and ``m_{e_i+te_j}``
 """
@@ -366,192 +431,47 @@ function recursiveOffDiagonalSolve(d, k, mixing_coefficients, means, covariances
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
+    estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Float64}, moments::Matrix{Float64})
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-For the unknown mixing coefficient dense covariance matrix case, `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
+For the known mixing coefficient diagonal covariance matrix case, `w` should be a vector of the mixing coefficients, and `moments` should be a matrix of moments 1 through 2k+1 for all dimensions.
 """
-function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
-    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
-
+function estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Float64}, moments::Matrix{Float64})
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
-    
-    # Build the system of equations for step 1
-    # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
-    @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
-    (system, polynomial) = build1DSystem(k, 3*k)
- 
-    if k in [2,3,4]
-        temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
-        R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
-    else
-        target1 = target2
-        
-        relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
-
-        temp_start = append!(randn(3*k) + im*randn(3*k))
-        temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
-
-        R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
-
-        R1_sols = solutions(R1)
-        relabeling = ()
-        temp_start = []
-    end
-
-    vars = append!(a,s,y)
-    # Parameter homotopy from random parameters to real parameters
-    solution1 = solve(system - m[1:3*k], R1_sols; parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
-    
-    system = []
-    temp_moments = []
-    R1_sols = []
-    
-    # Check for statistically significant solutions
-    # Return the one closest to the given moment, and the number of statistically significant solutions
-    # Filter out the statistically meaningful solutions (up to symmetry)
-    # Check positive mixing coefficients
-    pos_mixing  = filter(r -> all(r[1:k] .> 0), real_solutions(solution1)); 
-    solution1 = []
-    num_pos_mix = size(pos_mixing)[1]
-    if num_pos_mix == 0
-        best_sol = "No all positive mixing coefficient solutions"
-        num_sols = 0
-    else    
-        # Check positive variances
-        stat_significant1 = filter(r -> all(r[k+1:2*k] .> 0), pos_mixing);
-        num_sols = size(stat_significant1)[1]
-        if num_sols == 0
-            best_sol = "No all positive variance solutions in 1st dimension"
-        else
-            best_sols1 = [];
-            # Create list of differences between moment and polynomial(statistically significant solutions)
-            for i in 1:size(stat_significant1)[1]
-                t = polynomial(vars => stat_significant1[i])
-                append!(best_sols1, norm(first[end] - t))
-            end 
-            
-            # Chose the best statistically meaningful solution
-            id = findall(x->x==minimum(best_sols1), best_sols1); # Get the indices of the values with minimum norm
-            best_sols1 = []
-            best_sol = stat_significant1[id][1]
-        end
-        stat_significant1 = []
-    end
-    polynomial = 0
-    pos_mixing = []
-        
-    # If there aren't any statistically significant solutions, return false
-    if typeof(best_sol) == String
-        return (best_sol, (nothing,nothing,nothing))
-    end
-        
-    # Separate out the mixing coefficients, variances, and means
-    mixing_coefficients = best_sol[1:k]
-        
-    @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
-    
-    means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
-    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
-    
-    for i in 1:k
-        means[i, 1] = best_sol[2*k+i]
-        covariances[i, 1, 1] = best_sol[k+i]
-    end
-    best_sol = []
-
-    # Build 1D system for other dimensions
-    (system_i, polynomial_i) = build1DSystem(k, 2*k+1, mixing_coefficients)
-        
-    temp_start = append!(randn(2*k) + im*randn(2*k))
-    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
-    R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-    
-    if d > 1
-        for i in 2:d
-            # Compute the relevant moments
-            all_moments = second[i-1, 1:end]
-
-            # Parameter homotopy from random parameters to real parameters
-            solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-
-            # Choose the statistically significant solution closest to the next moment
-            best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
-            if best_sol_i == false
-                return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
-            end
-            for j in 1:k
-                covariances[j, i, i] = best_sol_i[j]
-                means[j, i] = best_sol_i[k+j]
-            end
-
-        end
-
-        solution = []
-        binomials = []
-        true_params = []
-        all_moments = []
-        system_i = []
-        polynomial_i = 0
-        best_sol_i = []
-        gaussians = []
-    
-        if method == "tensor"
-            covariances = tensorOffDiagonalSolve(d, k, mixing_coefficients, means, covariances, last)
-        elseif method == "recursive"
-            covariances = recursiveOffDiagonalSolve(d, k, mixing_coefficients, means, covariances, last)
-        end
-    end
-    return(true, (mixing_coefficients, means, covariances))
-end
-
-"""
-    estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
-
-Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
-
-For the known mixing coefficient dense covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
-"""
-function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
-    target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
-    checkInputs(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+    checkInputsKnown(d::Integer, k::Integer, w::Array{Float64}, moments::Matrix{Float64})
 
     @var m[0:2*k] s[1:k] y[1:k] a[1:k]
-    @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
-    
-    means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
-    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
+    means = Array{Float64}(undef, (k,d))
+    covariances = []
+    for i in 1:k
+        push!(covariances, Diagonal{Float64}(undef, d))
+    end
 
     # Build 1D system
     (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
-        
+
     temp_start = append!(randn(2*k) + im*randn(2*k))
     temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
     R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-    
-    for i in 1:d        
-        if i == 1
-            all_moments = first[2:2*k+2]
-        else
-            all_moments = second[i-1, 1:end]
-        end
-        # Solve via the binomial start system
-        
+
+    for i in 1:d
+        all_moments = moments[i, 1:end]
+
         solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-        
+
         # Choose the statistically significant solution closest to the next moment
         best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
         if best_sol_i == false
-            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
-        end 
+            return (2, (nothing,nothing,nothing))
+        end
 
         for j in 1:k
-            covariances[j, i, i] = best_sol_i[j]
+            covariances[j][i, i] = best_sol_i[j]
             means[j, i] = best_sol_i[k+j]
         end
     end
-        
+
     solution = []
     binomials = []
     true_params = []
@@ -560,15 +480,8 @@ function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::V
     polynomial_i = 0
     best_sol_i = []
     gaussians = []
-    
-    if d>1
-        if method == "tensor"
-            covariances = tensorOffDiagonalSolve(d, k, w, means, covariances, last)
-        elseif method == "recursive"
-            covariances = recursiveOffDiagonalSolve(d, k, w, means, covariances, last)
-        end
-    end
-    return(true, (w, means, covariances))
+
+    return(0, (w, means, covariances))
 end
 
 """
@@ -586,7 +499,7 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
     @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
     (system, polynomial) = build1DSystem(k, 3*k)
-    
+
     if k in [2,3,4]
         temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
         R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
@@ -596,47 +509,47 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
 
         temp_start = append!(randn(3*k) + im*randn(3*k))
         temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
-        
+
         R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
-        
+
         R1_sols = solutions(R1)
         relabeling = ()
         temp_start = []
     end
-        
+
     vars = append!(a,s,y)
     # Parameter homotopy from random parameters to real parameters
     solution1 = solve(system - m[1:3*k], R1_sols; parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
-    
+
     system = []
     temp_moments = []
     R1_sols = []
-    
+
     # Check for statistically significant solutions
     # Return the one closest to the given moment, and the number of statistically significant solutions
     # Filter out the statistically meaningful solutions (up to symmetry)
     # Check positive mixing coefficients
-    pos_mixing  = filter(r -> all(r[1:k] .> 0), real_solutions(solution1)); 
-        
+    pos_mixing  = filter(r -> all(r[1:k] .> 0), real_solutions(solution1));
+
     solution1 = []
     num_pos_mix = size(pos_mixing)[1]
     if num_pos_mix == 0
-        best_sol = "No all positive mixing coefficient solutions"
+        best_sol = 1
         num_sols = 0
-    else    
+    else
         # Check positive variances
         stat_significant1 = filter(r -> all(r[k+1:2*k] .> 0), pos_mixing);
         num_sols = size(stat_significant1)[1]
         if num_sols == 0
-            best_sol = "No all positive variance solutions in 1st dimension"
+            best_sol = 1
         else
             best_sols1 = [];
             # Create list of differences between moment and polynomial(statistically significant solutions)
             for i in 1:size(stat_significant1)[1]
                 t = polynomial(vars => stat_significant1[i])
                 append!(best_sols1, norm(first[end] - t))
-            end 
-            
+            end
+
             # Chose the best statistically meaningful solution
             id = findall(x->x==minimum(best_sols1), best_sols1); # Get the indices of the values with minimum norm
             best_sols1 = []
@@ -646,120 +559,201 @@ function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, sec
     end
     polynomial = 0
     pos_mixing = []
-                
+
     # If there aren't any statistically significant solutions, return false
-    if typeof(best_sol) == String
+    if best_sol == 1
         return (best_sol, (nothing,nothing,nothing))
     end
-        
+
     # Separate out the mixing coefficients, variances, and means
     mixing_coefficients = best_sol[1:k]
-        
+
     means = Array{Float64}(undef, (k,d))
     covariances = []
     for i in 1:k
         push!(covariances, Diagonal{Float64}(undef, d))
     end
-    
+
     for i in 1:k
         means[i, 1] = best_sol[2*k+i]
         covariances[i][1, 1] = best_sol[k+i]
     end
     best_sol = []
 
-    # Build 1D system for other dimensions
-    (system_i, polynomial_i) = build1DSystem(k, 2*k+1, mixing_coefficients)
-        
-    temp_start = append!(randn(2*k) + im*randn(2*k))
-    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
-    R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-    
-    for i in 2:d        
-        # Compute the relevant moments
-        all_moments = second[i-1, 1:end]
-                
-        # Parameter homotopy from random parameters to real parameters
-        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-                
-        # Choose the statistically significant solution closest to the next moment
-        best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
-        if best_sol_i == false
-            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
-        end 
-        for j in 1:k
-            covariances[j][i, i] = best_sol_i[j]
-            means[j, i] = best_sol_i[k+j]
+    higher_dim_sols = estimate_parameters_weights_known(d-1, k, mixing_coefficients, second)
+    if higher_dim_sols[1] > 0
+        return (higher_dim_sols)
+    else
+        perm = Vector{Int}(undef, k)
+        for (i, x) in enumerate(mixing_coefficients)
+            perm[i] = findfirst(y -> y == x, higher_dim_sols[2][1])
+        end
+        means[1:end, 2:end] = higher_dim_sols[2][2][perm, 1:end]
+        for i in 1:k
+            for j in 2:d
+                covariances[i][j,j] = higher_dim_sols[2][3][perm[i]][j-1,j-1]
+            end
         end
     end
-        
-    solution = []
-    binomials = []
-    true_params = []
-    all_moments = []
-    system_i = []
-    polynomial_i = 0
-    best_sol_i = []
-    gaussians = []
-    return(true, (mixing_coefficients, means, covariances))
+
+    return(0, (mixing_coefficients, means, covariances))
 end
 
 """
-    estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64})
+    estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Float64}, first::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
 
 Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
 
-For the known mixing coefficient diagonal covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, and `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions.
+For the known mixing coefficient general covariance matrix case, `w` should be a vector of the mixing coefficients `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
 """
-function estimate_parameters(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64})
+function estimate_parameters_weights_known(d::Integer, k::Integer, w::Array{Float64}, first::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
     target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
-    checkInputs(d::Integer, k::Integer, w::Array{Float64}, first::Vector{Float64}, second::Matrix{Float64})
+    checkInputsKnown(d::Integer, k::Integer, w::Array{Float64}, first::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+
+    diag_solve = estimate_parameters_weights_known(d, k, w, first)
+    if diag_solve[1] > 0
+        return(diag_solve)
+    end
+    perm = Vector{Int}(undef, k)
+    for (i, x) in enumerate(w)
+        perm[i] = findfirst(y -> y == x, diag_solve[2][1])
+    end
+
+    means = diag_solve[2][2][perm, 1:end]
 
     @var m[0:2*k] s[1:k] y[1:k] a[1:k]
-    means = Array{Float64}(undef, (k,d))
-    covariances = []
+    @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
+
+    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
     for i in 1:k
-        push!(covariances, Diagonal{Float64}(undef, d))
+        for j in 1:d
+            covariances[i, j, j] = diag_solve[2][3][perm[i]][j,j]
+        end
     end
 
-    # Build 1D system
-    (system_i, polynomial_i) = build1DSystem(k, 2*k+1, w)
-        
-    temp_start = append!(randn(2*k) + im*randn(2*k))
-    temp_moments = [p([s;y]=>(temp_start)) for p in system_i[2:end]]
-    R1 =  monodromy_solve(system_i[2:end] - m[1:2*k], temp_start, temp_moments, parameters = m[1:2*k], target_solutions_count = target2, show_progress=false)
-    
-    for i in 1:d        
-        if i == 1
-            all_moments = first[2:2*k+2]
+    if d>1
+        if method == "tensor"
+            covariances = tensorOffDiagonalSolve(d, k, w, means, covariances, last)
+        elseif method == "recursive"
+            covariances = recursiveOffDiagonalSolve(d, k, w, means, covariances, last)
+        end
+    end
+
+    for i in 1:k
+        cov_mat = convert(Matrix{Float64}, covariances[i, 1:end, 1:end])
+        if !isposdef(cov_mat)
+            vecs = eigvecs(cov_mat)
+            vals = eigvals(cov_mat)
+            for j in 1:length(vals)
+                vals[j] = max(vals[j], randn(1)[1]*10^(-10))
+            end
+            temp_cov = vecs*Diagonal(vals)*inv(vecs)
+            covariances[i, 1:end, 1:end] = .5 * (temp_cov + transpose(temp_cov))
+        end
+    end
+
+    return(0, (w, means, covariances))
+end
+
+"""
+    estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
+
+Compute an estimate for the parameters of a `d`-dimensional Gaussian `k`-mixture model from the moments.
+
+For the unknown mixing coefficient general covariance matrix case, `first` should be a list of moments 0 through 3k for the first dimension, `second` should be a matrix of moments 1 through 2k+1 for the remaining dimensions, and `last` should be a dictionary of the indices as lists of integers and the corresponding moments.
+"""
+function estimate_parameters(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}; method = "recursive")
+    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
+
+    target2 = Int64(doublefactorial(2*k-1)*factorial(k)) # Number of solutions to look for in step 3
+
+    # Build the system of equations for step 1
+    # m is the parameter for the moments, s gives the variances, y gives the means, and a gives the mixing coefficients
+    @var m[0:3*k-1] s[1:k] y[1:k] a[1:k]
+    (system, polynomial) = build1DSystem(k, 3*k)
+
+    if k in [2,3,4]
+        temp_moments = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "moments")
+        R1_sols = load(pkgdir(GMMParameterEstimation) * "/src/sys1_k" * string(k) * ".jld2", "sols")
+    else
+        target1 = target2
+
+        relabeling = (GroupActions(v -> map(p -> (v[1:k][p]...,v[k+1:2*k][p]...,v[2*k+1:3k][p]...),SymmetricGroup(k))))
+
+        temp_start = append!(randn(3*k) + im*randn(3*k))
+        temp_moments = [p([a;s;y]=>(temp_start)) for p in system]
+
+        R1 =  monodromy_solve(system - m[1:3*k], temp_start, temp_moments, parameters = m[1:3*k], target_solutions_count = target1, group_action = relabeling, show_progress=false)
+
+        R1_sols = solutions(R1)
+        relabeling = ()
+        temp_start = []
+    end
+
+    vars = append!(a,s,y)
+    # Parameter homotopy from random parameters to real parameters
+    solution1 = solve(system - m[1:3*k], R1_sols; parameters=m[1:3*k], start_parameters=temp_moments, target_parameters=first[1:3*k], show_progress=false)
+
+    system = []
+    temp_moments = []
+    R1_sols = []
+
+    # Check for statistically significant solutions
+    # Return the one closest to the given moment, and the number of statistically significant solutions
+    # Filter out the statistically meaningful solutions (up to symmetry)
+    # Check positive mixing coefficients
+    pos_mixing  = filter(r -> all(r[1:k] .> 0), real_solutions(solution1));
+    solution1 = []
+    num_pos_mix = size(pos_mixing)[1]
+    if num_pos_mix == 0
+        best_sol = 1
+        num_sols = 0
+    else
+        # Check positive variances
+        stat_significant1 = filter(r -> all(r[k+1:2*k] .> 0), pos_mixing);
+        num_sols = size(stat_significant1)[1]
+        if num_sols == 0
+            best_sol = 1
         else
-            all_moments = second[i-1, 1:end]
-        end
-        # Solve via the binomial start system
-        
-        solution = solve(system_i[2:end] - m[1:2*k], solutions(R1); parameters=m[1:2*k], start_parameters=temp_moments, target_parameters=all_moments[1:2*k], show_progress=false)
-        
-        # Choose the statistically significant solution closest to the next moment
-        best_sol_i = selectSol(k, solution, polynomial_i, all_moments[end])
-        if best_sol_i == false
-            return ("No all positive variance solutions in "*string(i)*"th dimension", (nothing,nothing,nothing))
-        end 
+            best_sols1 = [];
+            # Create list of differences between moment and polynomial(statistically significant solutions)
+            for i in 1:size(stat_significant1)[1]
+                t = polynomial(vars => stat_significant1[i])
+                append!(best_sols1, norm(first[end] - t))
+            end
 
-        for j in 1:k
-            covariances[j][i, i] = best_sol_i[j]
-            means[j, i] = best_sol_i[k+j]
+            # Chose the best statistically meaningful solution
+            id = findall(x->x==minimum(best_sols1), best_sols1); # Get the indices of the values with minimum norm
+            best_sols1 = []
+            best_sol = stat_significant1[id][1]
         end
+        stat_significant1 = []
     end
-        
-    solution = []
-    binomials = []
-    true_params = []
-    all_moments = []
-    system_i = []
-    polynomial_i = 0
-    best_sol_i = []
-    gaussians = []
+    polynomial = 0
+    pos_mixing = []
 
-    return(true, (w, means, covariances))
+    # If there aren't any statistically significant solutions, return false
+    if best_sol == 1
+        return (best_sol, (nothing,nothing,nothing))
+    end
+
+    # Separate out the mixing coefficients, variances, and means
+    mixing_coefficients = best_sol[1:k]
+
+    @var vs[1:k, 1:d, 1:d] ms[1:k, 1:d]
+
+    means::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
+    covariances::Array{Union{Variable, Float64}} = reshape([vs...], (k, d, d))
+
+    for i in 1:k
+        means[i, 1] = best_sol[2*k+i]
+        covariances[i, 1, 1] = best_sol[k+i]
+    end
+    best_sol = []
+
+    higher_dim_sols = estimate_parameters_weights_known(d, k, mixing_coefficients, vcat(transpose(first[2:2*k+2]), second), last; method = method)
+
+    return(higher_dim_sols)
 end
 
 """
@@ -772,21 +766,21 @@ The shared covariance matrix `shared_cov` will determine the dimension. Then `fi
 function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64}; method = "recursive")
     d = size(shared_cov)[1]
     checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64}, method)
-    
-    @var ms[1:k, 1:d]    
+
+    @var ms[1:k, 1:d]
     meansEst::Array{Union{Variable, Float64}} = reshape([ms...], (k, d))
     @var s[1:k], y[1:k] #y means, s sigma
     first_system = build1DSystem(k, k+1, ones(k)/k)[1][2:end]
     first_system = evaluate(first_system, s => repeat([shared_cov[1,1]],k))
-    
+
     sol1 = solve(first_system-first, show_progress = false)
     real_sols = real_solutions(sol1)
-    
+
     size(real_sols)[1] == 0 && (return (false, nothing))
-    
+
     meansEst[1:k,1] = real_solutions(sol1)[1]
     mean_systems = Array{Expression}(undef, (k,d-1))
-    
+
     if method == "tensor"
         mean_systems = Array{Expression}(undef, (k,d-1))
 
@@ -883,146 +877,7 @@ function estimate_parameters(k::Integer, shared_cov::Matrix{Float64}, first::Vec
             end
         end
     end
-    
+
     return(true, meansEst)
-end
-
-"""
-    cycle_for_weights(k::Integer, sample; start_dim = 1)
-
-Starting with `start_dim` cycle over the dimensions of `sample` until candidate mixing coefficients are found.
-"""
-function cycle_for_weights(k::Integer, sample; start_dim = 1)
-    (d, sample_size) = size(sample)
-    mixing_coeffs = false
-    while (mixing_coeffs == false) & (start_dim <= d)
-        first_moms = Vector{Float64}(undef, 3*k+1)
-        first_moms[1] = 1.0
-        for j in 1:3*k
-            first_moms[j+1] = mean(sample[start_dim, i]^j for i in 1:sample_size)
-        end
-        
-        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((2,2)))
-        
-        if first_pass == true
-            mixing_coeffs = weights
-        end
-        start_dim += 1
-    end
-    return(mixing_coeffs, start_dim)
-end
-
-"""
-    dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, indexes::Dict{Vector{Int64}, Float64}; method = "recursive")
-
-Cycle over the dimensions of `cycle_moments` to find candidate mixing coefficients, then solve for parameters based on those.
-
-This will take longer than estimate\\_parameters since it does multiple tries.  Will try each dimension to attempt to find mixing coefficients, and if found will try to solve for parameters.  Returns `pass` = false if no dimension results in mixing coefficients that allow for a solution.  `cycle_moments` should be an array of the 0 through 3`k` moments for each dimension. If no `indexes` is given, assumes diagonal covariance matrices and a method should not be specified.
-"""
-function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64})
-    first_dim = 1
-    first_pass = false
-    pass = false
-    while (first_dim <= d) & (pass == false)
-        first_moms = cycle_moments[first_dim, 1:end]
-
-        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((0,2*k+1)))
-        if first_pass == true
-            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2])
-        end
-        first_dim += 1
-    end
-    if first_pass != true
-        pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
-    end
-    if first_dim == 2
-        first_passing = true
-    else
-        first_passing = false
-    end
-    return pass, first_passing, (weights, means, covariances)
-end
-
-function dimension_cycle(d::Integer, k::Integer, cycle_moments::Array{Float64}, indexes::Dict{Vector{Int64}, Float64}; method = "recursive")
-    first_dim = 1
-    first_pass = false
-    pass = false
-    while (first_dim <= d) & (pass == false)
-        first_moms = cycle_moments[first_dim, 1:end]
-
-        first_pass, (weights, means, covar) = estimate_parameters(1, k, first_moms, zeros((0,2*k+1)))
-        if first_pass == true
-            pass, (weights, means, covariances) = estimate_parameters(d, k, weights, cycle_moments[1,1:end], cycle_moments[2:end, 2:2*k+2], indexes; method = method)
-        end
-
-        first_dim += 1
-    end
-    if first_pass != true
-        pass, (weights, means, covariances) = false, (nothing, nothing, nothing)
-    end
-    if first_dim == 2
-        first_passing = true
-    else
-        first_passing = false
-    end
-    return pass, first_passing, (weights, means, covariances)
-end
-
-"""
-    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
-
-Returns `true` if the inputs are the right format for `estimate_parameters` and an error otherwise.
-"""
-function checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
-    !(method in ["recursive", "tensor"]) && error("method must be recursive or tensor")
-    (length(first) != 3k+1) && error("first must have length 3k+1")
-    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
-    (length(last) != k*d*(d-1)/2) && error("last must include kd(d-1)/2 entries")
-    for key in keys(last)
-        (count(x -> x>0, key) != 2) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
-        (count(x -> x==1, key) < 1) && error("moment keys in last should be of the form te_{i}+e_{j} for i != j, t<= floor((k-1)/2)+1, see docs for more detail")
-    end
-
-    return true
-end
-
-"""
-    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
-"""
-function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
-    (length(w) != k) && error("w must be length k")
-
-    return checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64}, last::Dict{Vector{Int64}, Float64}, method)
-end
-
-"""
-    checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
-"""
-function checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
-    (length(first) != 3k+1) && error("first must have length 3k+1")
-    (size(second) != (d-1,2k+1)) && error("second must be d-1 x 2k+1")
-
-    return true
-end
-
-"""
-    checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64})
-"""
-function checkInputs(d::Integer, k::Integer, w::Vector{Float64}, first::Vector{Float64}, second::Matrix{Float64})
-    (length(w) != k) && error("w must be length k")
-
-    return checkInputs(d::Integer, k::Integer, first::Vector{Float64}, second::Matrix{Float64})
-end
-
-"""
-    checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64}, method)
-"""
-function checkInputs(d::Integer, k::Integer, shared_cov::Matrix{Float64}, first::Vector{Float64}, second::Matrix{Float64}, method)
-    !(method in ["recursive", "tensor"]) && error("method must be recursive or tensor")
-    !isposdef(shared_cov) && error("shared_cov must be positive definite")
-    (length(first) != k) && error("first must have length k+1")
-    (size(second) != (k,d-1)) && error("second must be k x d-1")
-
-    return true
 end
 end
